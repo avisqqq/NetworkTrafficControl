@@ -1,0 +1,2 @@
+clang -O2 -g -target bpf -D__TARGET_ARCH_arm64 \
+  -c xdp_basic.bpf.c -o xdp_basic.bpf.o
