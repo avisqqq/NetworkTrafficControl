@@ -44,6 +44,19 @@ int xdp_basic(struct xdp_md *ctx)
     if ((void *)(ip + 1) > data_end)
         return XDP_PASS;
 
+
+    // FILTER SSH CONNECTION
+    if(ip->protocol == IPPROTO_TCP){
+        struct tcphdr *tcp = (void *)ip + ip->ihl * 4;
+        if((void *)(tcp + 1) > data_end)
+            return XDP_PASS;
+
+        if(bpf_ntohs(tcp->dest) == 22 ||
+            bpf_ntohs(tcp->source) == 22)
+                return XDP_PASS;
+    }
+
+
     __u32 key = 0;
     __u64 *val = bpf_map_lookup_elem(&counter, &key);
     if(!val)
