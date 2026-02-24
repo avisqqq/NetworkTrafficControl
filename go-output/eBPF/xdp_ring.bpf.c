@@ -62,14 +62,13 @@ int xdp_basic(struct xdp_md *ctx)
     if(!val)
         return XDP_PASS;
 
-    __u64 seq = __atomic_fetch_add(val, 1, __ATOMIC_RELAXED);
-
     struct event *e;
     e = bpf_ringbuf_reserve(&events,sizeof(*e), 0);
     if(!e)
         return XDP_PASS;
     e->ts = bpf_ktime_get_ns();
-    e->seq = seq;
+    e->seq = *val;
+    __sync_fetch_and_add(val, 1);
     e->src = ip->saddr;
     e->dst = ip->daddr;
     e->proto = ip-> protocol;
