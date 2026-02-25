@@ -2,12 +2,18 @@ package main
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
-	"encoding/hex"
-	"fmt"
+	"encoding/json"
 	"log"
 	"net"
-	"unsafe" // for calculating event size
+	"net/http"
+	"os"
+	"os/signal"
+	"path/filepath"
+	"sync"
+	"syscall"
+	"time"
 
 	"github.com/cilium/ebpf"
 	"github.com/cilium/ebpf/link"
@@ -22,6 +28,13 @@ type Event struct {
 	Proto uint8
 	Pad   [7]byte
 }
+type OutEvent struct {
+	Ts    uint64 `json:"ts"`
+	Seq   uint64 `json:"seq"`
+	Src   uint32 `json:"src"`
+	Dst   uint32 `json:"dst"`
+	Proto uint8  `json:"proto"`
+}
 
 func ipToString(v uint32) string {
 	b := make([]byte, 4)
@@ -30,8 +43,7 @@ func ipToString(v uint32) string {
 }
 
 func main() {
-	fmt.Println(unsafe.Sizeof(Event{}))
-
+	// BPF LOAD
 	spec, err := ebpf.LoadCollectionSpec("xdp_ring.bpf.o")
 	if err != nil {
 		log.Fatal(err)
@@ -65,24 +77,127 @@ func main() {
 	}
 	defer rd.Close()
 
-	fmt.Println("Listening...")
-	for {
-		record, err := rd.Read()
-		fmt.Println("raw:", hex.EncodeToString(record.RawSample))
-		if err != nil {
-			log.Fatal(err)
-		}
+	// SSE pubsub
+	var (
+		mu      sync.Mutex
+		clients = map[chan []byte]struct{}{}
+	)
 
-		var e Event
-		if err := binary.Read(bytes.NewBuffer(record.RawSample), binary.LittleEndian, &e); err != nil {
-			continue
+	broadcast := func(b []byte) {
+		mu.Lock()
+		defer mu.Unlock()
+		for ch := range clients {
+			select {
+			case ch <- b:
+			default:
+				// drop live update
+			}
 		}
-
-		fmt.Printf("seq=%d proto=%d src=%s dst=%s\n",
-			e.Seq,
-			e.Proto,
-			ipToString(e.Src),
-			ipToString(e.Dst),
-		)
 	}
+	ctx, cancel := context.WithCancel(context.Background())
+
+	go func() {
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			default:
+			}
+			rec, err := rd.Read()
+			if err != nil {
+				return
+			}
+			var e Event
+			if err := binary.Read(bytes.NewReader(rec.RawSample), binary.LittleEndian, &e); err != nil {
+				continue
+			}
+			out := OutEvent{
+				Ts:    e.Ts,
+				Seq:   e.Seq,
+				Src:   e.Src,
+				Dst:   e.Dst,
+				Proto: e.Proto,
+			}
+
+			j, err := json.Marshal(out)
+			if err != nil {
+				continue
+			}
+			broadcast(j)
+		}
+	}()
+
+	// HTTP
+	mux := http.NewServeMux()
+	webDir := "web"
+	mux.Handle("/", http.FileServer(http.Dir(webDir)))
+
+	mux.HandleFunc("/event", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/event-stream")
+		w.Header().Set("Cache-Control", "no-cache")
+		w.Header().Set("connection", "keep-alive")
+
+		flusher, ok := w.(http.Flusher)
+		if !ok {
+			http.Error(w, "streaming unsupported", http.StatusInternalServerError)
+			return
+		}
+
+		ch := make(chan []byte, 128)
+		mu.Lock()
+		clients[ch] = struct{}{}
+		mu.Unlock()
+		defer func() {
+			mu.Lock()
+			delete(clients, ch)
+			mu.Unlock()
+			close(ch)
+		}()
+
+		ticker := time.NewTicker(15 * time.Second)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-r.Context().Done():
+				return
+			case b := <-ch:
+				_, _ = w.Write([]byte("data: "))
+				_, _ = w.Write(b)
+				_, _ = w.Write([]byte("\n\n"))
+				flusher.Flush()
+			case <-ticker.C:
+				_, _ = w.Write([]byte(": ping\n\n"))
+				flusher.Flush()
+			}
+		}
+	})
+
+	srv := &http.Server{
+		Addr:    "127.0.0.1:8080",
+		Handler: logRequest(mux),
+	}
+
+	// shutdown
+	go func() {
+		sigch := make(chan os.Signal, 2)
+		signal.Notify(sigch, os.Interrupt, syscall.SIGTERM)
+		<-sigch
+		cancel()
+		_ = srv.Shutdown(context.Background())
+	}()
+
+	abs, _ := filepath.Abs(webDir)
+	log.Printf("Web: http://127.0.0.1:8080/ (servering %s)\n", abs)
+	log.Printf("SSE: http://127.0.0.1:8080/events\n")
+	if err := srv.ListenAndServe(); err != http.ErrServerClosed {
+		log.Fatal(err)
+	}
+}
+
+func logRequest(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		log.Printf("%s %s", r.Method, r.URL.Path)
+		next.ServeHTTP(w, r)
+	})
 }
