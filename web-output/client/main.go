@@ -37,9 +37,9 @@ type OutEvent struct {
 }
 
 func ipToString(v uint32) string {
-	b := make([]byte, 4)
-	binary.LittleEndian.PutUint32(b, v)
-	return net.IP(b).String()
+	var b [4]byte
+	binary.BigEndian.PutUint32(b[:], v)
+	return net.IP(b[:]).String()
 }
 
 func main() {
@@ -132,7 +132,7 @@ func main() {
 	webDir := "web"
 	mux.Handle("/", http.FileServer(http.Dir(webDir)))
 
-	mux.HandleFunc("/event", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/events", func(w http.ResponseWriter, r *http.Request) {
 		w.Header().Set("Content-Type", "text/event-stream")
 		w.Header().Set("Cache-Control", "no-cache")
 		w.Header().Set("connection", "keep-alive")
