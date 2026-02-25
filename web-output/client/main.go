@@ -31,14 +31,14 @@ type Event struct {
 type OutEvent struct {
 	Ts    uint64 `json:"ts"`
 	Seq   uint64 `json:"seq"`
-	Src   uint32 `json:"src"`
-	Dst   uint32 `json:"dst"`
+	Src   string `json:"src"`
+	Dst   string `json:"dst"`
 	Proto uint8  `json:"proto"`
 }
 
 func ipToString(v uint32) string {
 	var b [4]byte
-	binary.BigEndian.PutUint32(b[:], v)
+	binary.LittleEndian.PutUint32(b[:], v)
 	return net.IP(b[:]).String()
 }
 
@@ -114,8 +114,8 @@ func main() {
 			out := OutEvent{
 				Ts:    e.Ts,
 				Seq:   e.Seq,
-				Src:   e.Src,
-				Dst:   e.Dst,
+				Src:   ipToString(e.Src),
+				Dst:   ipToString(e.Dst),
 				Proto: e.Proto,
 			}
 
