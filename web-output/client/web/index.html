@@ -1,0 +1,62 @@
+<!doctype <html>
+<html>
+
+<head>
+	<meta charset="utf-8" />
+	<meta name="viewport" content="width=device-width" , initial-scale=1" />
+	<title>XDP Events</title>
+	<link rel="stylesheet" href="./style.css" />
+</head>
+
+<body>
+	<header class="top">
+		<div class="container row">
+			<div class="brand">
+				<div class="title">XDP Event</div>
+				<div class="title">SSE steam: /events</div>
+			</div>
+
+			<div class="spacer"></div>
+
+			<div id="status" class="pill">Connecting...</div>
+		</div>
+		<div class="container toolbar row">
+			<input id="filter" class="input" placeholder="Filter (ip / proto / seq)" />
+
+			<button id="toggle" class="btn"> Pause</button>
+			<button id="clear" class="btn btn-ghost">Clear</button>
+
+			<div class="spacer"></div>
+
+			<label class="meta row" style="gap:8px">
+				<span>Max</span>
+				<input id="cap" class="input input-small" value="300" />
+			</label>
+
+			<div class="meta">
+				Rows: <span id="count">0</span>
+			</div>
+		</div>
+	</header>
+
+	<main class="container">
+		<div class="card">
+			<table class="table">
+				<thead>
+					<tr>
+						<th class="right"> seq</th>
+						<th>proto</th>
+						<th>src</th>
+						<th>dst</th>
+						<th class="right"> age</th>
+					</tr>
+				</thead>
+				<tbody id="rows"></tbody>
+			</table>
+		</div>
+	</main>
+
+	<script src="./app.js"></script>
+</body>
+
+</html>
