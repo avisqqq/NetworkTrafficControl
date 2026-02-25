@@ -174,7 +174,7 @@ func main() {
 	})
 
 	srv := &http.Server{
-		Addr:    "127.0.0.1:8080",
+		Addr:    "0.0.0.0:8080",
 		Handler: logRequest(mux),
 	}
 
@@ -188,8 +188,8 @@ func main() {
 	}()
 
 	abs, _ := filepath.Abs(webDir)
-	log.Printf("Web: http://127.0.0.1:8080/ (servering %s)\n", abs)
-	log.Printf("SSE: http://127.0.0.1:8080/events\n")
+	log.Printf("Web: http://0.0.0.0:8080/ (servering %s)\n", abs)
+	log.Printf("SSE: http://0.0.0.0:8080/events\n")
 	if err := srv.ListenAndServe(); err != http.ErrServerClosed {
 		log.Fatal(err)
 	}
