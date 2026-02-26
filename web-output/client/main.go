@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/binary"
 	"encoding/json"
+	"fmt"
 	"log"
 	"net"
 	"net/http"
@@ -42,7 +43,26 @@ func ipToString(v uint32) string {
 	return net.IP(b[:]).String()
 }
 
+func ipToUint32(ipStr string) (uint32, error) {
+	ip := net.ParseIP(ipStr).To4()
+	if ip == nil {
+		return 0, fmt.Errorf("invalid ipv4")
+	}
+	return binary.LittleEndian.Uint32(ip), nil
+}
+
+func addToBlackList(m *ebpf.Map, ipStr string) error {
+	key, err := ipToUint32(ipStr)
+	if err != nil {
+		return err
+	}
+	val := uint8(1)
+	return m.Put(key, val)
+}
+
 func main() {
+	// TEST
+
 	// BPF LOAD
 	spec, err := ebpf.LoadCollectionSpec("xdp_ring.bpf.o")
 	if err != nil {
@@ -76,6 +96,13 @@ func main() {
 		log.Fatal(err)
 	}
 	defer rd.Close()
+	// Add BlackList
+	blacklistMap := coll.Maps["blacklist"]
+	macIP := "192.168.50.73"
+	err = addToBlackList(blacklistMap, macIP)
+	if err != nil {
+		log.Printf("blackList error: ", err)
+	}
 
 	// SSE pubsub
 	var (
@@ -104,6 +131,7 @@ func main() {
 			default:
 			}
 			rec, err := rd.Read()
+			fmt.Printf("raw: ", rec)
 			if err != nil {
 				return
 			}
