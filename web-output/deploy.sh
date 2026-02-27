@@ -15,5 +15,5 @@ sh compile.log
 cd ..
 
 echo "[*] Copying to RPi..."
-scp -r client/web eBPF/xdp_ring.bpf.o client/ringdemo admin@rpi.local:/home/admin/execute/
+scp -r client/web eBPF/xdp_ring.bpf.o client/ntc/ntc admin@rpi.local:/home/admin/execute/
 echo "[✓] Deploy successful"

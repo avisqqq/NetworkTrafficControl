@@ -1,1 +1,1 @@
-GOOS=linux GOARCH=arm64 go build -o ringdemo
+GOOS=linux GOARCH=arm64 go build -o ntc ./ntc 
