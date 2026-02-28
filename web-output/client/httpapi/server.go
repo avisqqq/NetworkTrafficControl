@@ -11,7 +11,7 @@ func NewServer(addr string, mgr *bpf.Manager, sse *SSE) *http.Server {
 
 	mux.HandleFunc("/events", sse.Handler)
 	mux.HandleFunc("/blacklist", BlacklistHandler(mgr))
-
+	mux.HandleFunc("/whitelist", WhitelistHandler(mgr))
 	return &http.Server{
 		Addr:    addr,
 		Handler: mux,

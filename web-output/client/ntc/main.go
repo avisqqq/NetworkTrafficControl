@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 
 	"client/httpapi"
 	"client/internal/bpf"
@@ -69,5 +70,12 @@ func main() {
 	<-ctx.Done()
 	log.Println("Shutting down...")
 
-	_ = srv.Shutdown(context.Background())
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	_ = srv.Shutdown(shutdownCtx)
+
+	mgr.Close() // ← this is required
+
+	return
 }

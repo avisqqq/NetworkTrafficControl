@@ -14,6 +14,14 @@ struct {
     __type(value, __u8);// dummy values
 }blacklist SEC(".maps");
 
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(max_entries, 1024);
+    __type(key, __u32); // for IP
+    __type(value, __u8);// dummy values
+}whitelist SEC(".maps");
+
+
 struct event {
     __u64 ts;
     __u64 seq;
@@ -25,7 +33,7 @@ struct event {
 
 struct{
     __uint(type,BPF_MAP_TYPE_ARRAY);
-    __uint(max_entries, 2);
+    __uint(max_entries, 3);
     __type(key,__u32);
     __type(value,__u64);
 } stats SEC(".maps");
@@ -70,7 +78,10 @@ int xdp_basic(struct xdp_md *ctx)
     __u64 *drop = bpf_map_lookup_elem(&stats, &drop_key);
     __u32 pass_key = 0;
     __u64 *pass = bpf_map_lookup_elem(&stats, &pass_key);
-    if (!drop || !pass)
+    __u32 skip_key = 2;
+    __u64 *skip = bpf_map_lookup_elem(&stats, &skip_key);
+    
+    if (!drop || !pass || !skip)
     return XDP_PASS;
     //
     bpf_printk("SRC=%x DST=%x\n", src, dst);
@@ -81,6 +92,11 @@ int xdp_basic(struct xdp_md *ctx)
         return XDP_DROP;
     }
 
+    if(bpf_map_lookup_elem(&whitelist, &src) ||
+           bpf_map_lookup_elem(&whitelist, &dst)){
+        __sync_fetch_and_add(skip, 1);
+        return XDP_PASS;
+    }
 
 
     struct event *e;

@@ -13,6 +13,7 @@ type Manager struct {
 	Link      link.Link
 	Events    *ringbuf.Reader
 	Blacklist *ebpf.Map
+	Whitelist *ebpf.Map
 }
 
 func Load(objPath, ifaceName string) (*Manager, error) {
@@ -55,6 +56,7 @@ func Load(objPath, ifaceName string) (*Manager, error) {
 		Link:      lnk,
 		Events:    rd,
 		Blacklist: coll.Maps["blacklist"],
+		Whitelist: coll.Maps["whitelist"],
 	}, nil
 }
 
