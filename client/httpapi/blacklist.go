@@ -34,7 +34,6 @@ func BlacklistHandler(mgr *bpf.Manager) http.HandlerFunc {
 				http.Error(w, err.Error(), 400)
 				return
 			}
-
 			json.NewEncoder(w).Encode(BlacklistResp{OK: true, IP: ip})
 		default:
 			http.Error(w, "method not allowed", 405)

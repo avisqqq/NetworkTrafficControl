@@ -1,22 +1,3 @@
-#cat-output
-give out in os root, all info in cat-output/README.md
-
-#go-output
-fix ./deploy.sh to 
-    your:
-        username
-        hostname
-        dir
-    in my case:
-        admin
-        rpi
-        /home/admin/execute
-after run on rpi sudo ./ringdemo
-
-get real traffic out in terminal
-
- 
-#web-output
 fix ./deploy.sh to 
     your:
         username
