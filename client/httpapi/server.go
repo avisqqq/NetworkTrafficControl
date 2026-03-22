@@ -12,6 +12,9 @@ func NewServer(addr string, mgr *bpf.Manager, sse *SSE) *http.Server {
 	mux.HandleFunc("/events", sse.Handler)
 	mux.HandleFunc("/blacklist", BlacklistHandler(mgr))
 	mux.HandleFunc("/whitelist", WhitelistHandler(mgr))
+	fs := http.FileServer(http.Dir("./web"))
+	mux.Handle("/", fs)
+
 	return &http.Server{
 		Addr:    addr,
 		Handler: mux,
