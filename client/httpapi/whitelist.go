@@ -36,6 +36,14 @@ func WhitelistHandler(mgr *bpf.Manager) http.HandlerFunc {
 			}
 
 			json.NewEncoder(w).Encode(WhitelistResp{OK: true, IP: ip})
+		case http.MethodGet:
+			list, err := mgr.GetFromWhiteList()
+			if err != nil {
+				http.Error(w, err.Error(), 500)
+				return
+			}
+			json.NewEncoder(w).Encode(list)
+
 		default:
 			http.Error(w, "method not allowed", 405)
 		}

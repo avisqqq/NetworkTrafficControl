@@ -19,10 +19,14 @@ GET localhost:8080/events -> raw messanges (probably not working in your browser
 
 POST localhost:8080/blacklist with body { "ip" : "Ipv4ToBlock"}
 
-DELETE localhost:8080/blacklist?Ipv4ToUnBlock
+DELETE localhost:8080/blacklist?ip=Ipv4ToUnBlock
+
+GET localhost:8080/whitelist -> return whitelist
 
 // WHITELIST -> skip IP in reading/any actions
 
-POST localhost:8080/blacklist with body { "ip" : "Ipv4ToAddWhiteList"}
+POST localhost:8080/whitelist with body { "ip" : "Ipv4ToAddWhiteList"}
 
-DELETE localhost:8080/blacklist?Ipv4ToRemoveFromWhiteList
+DELETE localhost:8080/whitelist?ip=Ipv4ToRemoveFromWhiteList
+
+GET localhost:8080/whitelist -> return whitelist 

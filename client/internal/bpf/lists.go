@@ -37,6 +37,42 @@ func (m *Manager) RemoveFromBlackList(ipStr string) error {
 	return m.Blacklist.Delete(key)
 }
 
+func (m *Manager) GetFromBlackList() ([]string, error) {
+	var result []string
+	iter := m.Blacklist.Iterate()
+
+	var key uint32
+	var value uint8
+
+	for iter.Next(&key, &value) {
+		ip := Uint32ToIP(key)
+		result = append(result, ip)
+	}
+
+	if err := iter.Err(); err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
+func (m *Manager) GetFromWhiteList() ([]string, error) {
+	var result []string
+	iter := m.Whitelist.Iterate()
+
+	var key uint32
+	var value uint8
+
+	for iter.Next(&key, &value) {
+		ip := Uint32ToIP(key)
+		result = append(result, ip)
+	}
+
+	if err := iter.Err(); err != nil {
+		return nil, err
+	}
+
+	return result, nil
+}
 func (m *Manager) AddToWhiteList(ipStr string) error {
 	key, err := IpToUint32(ipStr)
 	if err != nil {

@@ -1,10 +1,9 @@
 package httpapi
 
 import (
+	"client/internal/bpf"
 	"encoding/json"
 	"net/http"
-
-	"client/internal/bpf"
 )
 
 func BlacklistHandler(mgr *bpf.Manager) http.HandlerFunc {
@@ -35,6 +34,14 @@ func BlacklistHandler(mgr *bpf.Manager) http.HandlerFunc {
 				return
 			}
 			json.NewEncoder(w).Encode(BlacklistResp{OK: true, IP: ip})
+		case http.MethodGet:
+			list, err := mgr.GetFromBlackList()
+			if err != nil {
+				http.Error(w, err.Error(), 500)
+				return
+			}
+			json.NewEncoder(w).Encode(list)
+
 		default:
 			http.Error(w, "method not allowed", 405)
 		}
