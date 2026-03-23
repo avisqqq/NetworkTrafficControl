@@ -37,8 +37,8 @@ func main() {
 	// 	log.Fatal(err)
 	// }
 	// defer mgr2.Close()
-	// // --- Create SSE hub ---
-	// sse := httpapi.NewSSE()
+	// --- Create SSE hub ---
+	sse := httpapi.NewSSE()
 
 	// --- Start ringbuf reader ---
 	events := bpf.ReadEvents(ctx, mgr.Events)
