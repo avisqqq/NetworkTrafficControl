@@ -29,9 +29,16 @@ func main() {
 		log.Fatal(err)
 	}
 	defer mgr.Close()
+	
+	// SECOND INTERFACE 
 
-	// --- Create SSE hub ---
-	sse := httpapi.NewSSE()
+	// mgr2, err := bpf.Load("xdp_ring.bpf.o", "eth0")
+	// if err != nil {
+	// 	log.Fatal(err)
+	// }
+	// defer mgr2.Close()
+	// // --- Create SSE hub ---
+	// sse := httpapi.NewSSE()
 
 	// --- Start ringbuf reader ---
 	events := bpf.ReadEvents(ctx, mgr.Events)
@@ -55,6 +62,28 @@ func main() {
 			sse.Broadcast(j)
 		}
 	}()
+
+	// events2 := bpf.ReadEvents(ctx, mgr2.Events)
+	// go func() {
+	// 	for e := range events2 {
+
+	// 		out := model.OutEvent{
+	// 			Ts:    e.Ts,
+	// 			Seq:   e.Seq,
+	// 			Src:   bpf.Uint32ToIP(e.Src),
+	// 			Dst:   bpf.Uint32ToIP(e.Dst),
+	// 			Proto: e.Proto,
+	// 		}
+
+	// 		j, err := json.Marshal(out)
+	// 		if err != nil {
+	// 			continue
+	// 		}
+
+	// 		sse.Broadcast(j)
+	// 	}
+	// }()	
+
 
 	// --- Create HTTP server ---
 	srv := httpapi.NewServer(":8080", mgr, sse)
