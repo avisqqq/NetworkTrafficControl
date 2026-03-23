@@ -39,8 +39,33 @@
 		</div>
 	</header>
 
-	<main class="container">
-		<div class="card">
+	<main class="container-split">
+		<aside class="panel">
+			<div class="card">
+				<div class="row">
+					<select id="listType" class="input">
+						<option value="black">BlackList</option>
+						<option value="white">WhiteList</option>
+					</select>
+				</div>
+
+				<div class="row" style="margin-top:10px">
+					<input id="ipInput" class="input" placeholder="IPv4 (e.g. 1.2.3.4)" required pattern="\d+\.\d+\.\d+\.\d+"/>
+				</div>
+
+				<div class="row" style="margin-top:10px">
+					<button id="addBtn" class="btn">Add</button>
+					<button id="removeBtn" class="btn btn-ghost">Remove</button>
+					<button id="refreshBtn" class="btn btn-ghost">Refresh</button>
+				</div>
+
+				<div class="card" style="margin-top:10px">
+					<div class="meta">Entires</div>
+					<ul id="listEntries" class="list"></ul>
+				</div>
+			</div>
+		</aside>
+		<div class="card" style="flex:1">
 			<table class="table">
 				<thead>
 					<tr>

@@ -5,12 +5,78 @@ const clearBtn = document.getElementById('clear');
 const capEl = document.getElementById('cap');
 const countEl = document.getElementById('count');
 const rowsEl = document.getElementById('rows');
+const listTypeEl = document.getElementById('listType');
+const ipInputEl = document.getElementById('ipInput');
+const addBtn = document.getElementById('addBtn');
+const removeBtn = document.getElementById('removeBtn');
+const refreshBtn = document.getElementById('refreshBtn');
+const listEl = document.getElementById('listEntries');
+
+function currentList(){
+	return listTypeEl.value;
+}
 
 let paused = false;
 let cap = 300;
 let shown = 0;
 const t0 = performance.now();
 
+function baseUrl(){
+	return currentList() === 'black' ? '/blacklist' : '/whitelist';
+}
+
+async function loadList(){
+	const res = await fetch((baseUrl()));
+	const data = await res.json();
+	renderList(data);
+}
+loadList();
+addBtn.onclick = async () => {
+	const ip = ipInputEl.value.trim();
+	if (!ip) return;
+
+	await fetch(baseUrl(), {
+		method: 'POST',
+		headers: {'Content-Type': 'application/json'},
+		body: JSON.stringify({ip})
+	});
+
+	ipInputEl.value = '';
+	loadList();
+
+}
+
+removeBtn.onclick = async () =>{
+	const ip = ipInputEl.value.trim();
+	if(!ip) return;
+
+	await fetch(`${baseUrl()}?ip=${encodeURIComponent(ip)}`,{
+		method: 'DELETE'
+	});
+
+	ipInputEl.value = '';
+	loadList();
+}
+refreshBtn.onclick = loadList();
+listTypeEl.onchange = loadList();
+
+function renderList(data){
+	if(data == null){
+		return
+	}
+	listEl.innerHTML = '';
+
+	for(const ip of data){
+		const li = document.createElement('li');
+		li.textContent = ip;
+
+		li.onclick = () =>{
+			ipInputEl.value = ip;
+		};
+
+		listEl.appendChild(li);
+	}
+}
 
 function setStatus(ok) {
 	statusEl.className = 'pill ' + (ok ? 'ok' : 'bad')
@@ -30,8 +96,8 @@ function matchesFilter(e) {
 	return (
 		String(e.seq).includes(q) ||
 		String(e.proto).includes(q) ||
-		(e.src || '').toLowerCase.includes(q) ||
-		(e.dst || '').toLowerCase.includes(q)
+		(e.src || '').toLowerCase().includes(q) ||
+		(e.dst || '').toLowerCase().includes(q)
 	);
 }
 
@@ -50,6 +116,7 @@ function addRow(e) {
 		<td>${e.dst}</td>
 		<td class="right">${ageMs}ms</td>
 	`;
+	
 	rowsEl.prepend(tr);
 	shown++;
 	countEl.textContent = shown;
@@ -84,7 +151,7 @@ filterEl.addEventListener('input', () => {
 	countEl.textContent = '0';
 })
 
-const es = new EventSource('/events');
+const es = new EventSource('http://192.168.0.143:8080/events');
 es.onopen = () => setStatus(true)
 es.onerror = () => setStatus(false)
 es.onmessage = (msg) => {
