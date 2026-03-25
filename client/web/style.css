@@ -9,6 +9,7 @@
 	--bad: #fb7185;
 	--blue: #60a5fa;
 	--r: 14px;
+	--danger: #f43f5e
 }
 
 * {
@@ -100,23 +101,47 @@ body {
 }
 
 .btn {
-	padding: 9px 12px;
-	border-radius: 10px;
-	border: 1px solid var(--line);
-	background: rgba(255, 255, 255, .04);
-	color: var(--text);
-	cursor: pointer;
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 999px;
+    border: 1px solid var(--line);
+    background: transparent;
+    color: var(--muted);
+    cursor: pointer;
+    transition: all 0.15s ease;
 }
 
-.btn:hover {
-	background: rgba(255, 255, 255, .07);
+.btn-success {
+    color: var(--good);
+    border-color: rgba(45, 212, 191, 0.35);
 }
 
+.btn-success:hover {
+    background: rgba(45, 212, 191, 0.12);
+    box-shadow: 0 0 8px rgba(45, 212, 191, 0.35);
+}
+
+.btn-danger {
+    color: var(--danger);
+    border-color: rgba(244, 63, 94, 0.35);
+}
+
+.btn-danger:hover {
+    background: rgba(244, 63, 94, 0.12);
+    box-shadow: 0 0 8px rgba(244, 63, 94, 0.4);
+}
 .btn-ghost {
-	background: transparent;
-	color: var(--muted);
+    background: transparent;
+    color: var(--muted);
+    border: 1px solid transparent;
+    transition: all 0.15s ease;
 }
 
+.btn-ghost:hover {
+    border-color: var(--line);
+    box-shadow: 0 0 8px rgba(148, 163, 184, 0.35);
+    color: white;
+}
 .meta {
 	color: var(--muted);
 	font-size: 12px;
@@ -132,6 +157,7 @@ main {
 	border-radius: var(--r);
 	overflow: hidden;
 	background: var(--panel);
+	margin-bottom: 10px;
 }
 
 .table {
