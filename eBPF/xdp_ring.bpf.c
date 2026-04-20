@@ -11,6 +11,7 @@
 #define ETH_P_IP 0x0800
 #endif
 
+//Blacklist declaration
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);
     __uint(max_entries, 1024);
@@ -18,6 +19,7 @@ struct {
     __type(value, __u8);// dummy values
 }blacklist SEC(".maps");
 
+//Whitelist declaration
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);
     __uint(max_entries, 1024);
@@ -25,16 +27,26 @@ struct {
     __type(value, __u8);// dummy values
 }whitelist SEC(".maps");
 
-
+//Single package structure for ring buffer
 struct event {
     __u64 ts;
     __u64 seq;
     __u32 src;
     __u32 dst;
     __u8 proto;
-    __u8 pad[7]; 
+    __u8 action;
+    __u8 pad[6]; 
 };
 
+
+enum event_action{
+    ACT_PASS = 0,
+    ACT_DROP = 1,
+    ACT_SKIP = 2,
+    ACT_SSH_BYPASS = 3,
+};
+
+//Stats table declaration
 struct{
     __uint(type,BPF_MAP_TYPE_ARRAY);
     __uint(max_entries, 3);
@@ -42,6 +54,7 @@ struct{
     __type(value,__u64);
 } stats SEC(".maps");
 
+//Ring buffer declaration(All packages will be sent to user space through this buffer)
 struct {
     __uint(type, BPF_MAP_TYPE_RINGBUF);
     __uint(max_entries, 1<<20); // 1MB
@@ -117,6 +130,10 @@ int xdp_basic(struct xdp_md *ctx)
     bpf_ringbuf_submit(e, 0);
 
     return XDP_PASS;
+}
+
+void add_to_buffer(){
+    
 }
 
 char LICENSE[] SEC("license") = "GPL";
