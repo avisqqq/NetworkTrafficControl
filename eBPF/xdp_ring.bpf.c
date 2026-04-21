@@ -11,21 +11,7 @@
 #define ETH_P_IP 0x0800
 #endif
 
-//Blacklist declaration
-struct {
-    __uint(type, BPF_MAP_TYPE_HASH);
-    __uint(max_entries, 1024);
-    __type(key, __u32); // for IP
-    __type(value, __u8);// dummy values
-}blacklist SEC(".maps");
 
-//Whitelist declaration
-struct {
-    __uint(type, BPF_MAP_TYPE_HASH);
-    __uint(max_entries, 1024);
-    __type(key, __u32); // for IP
-    __type(value, __u8);// dummy values
-}whitelist SEC(".maps");
 
 //Single package structure for ring buffer
 struct event {
@@ -46,6 +32,28 @@ enum event_action{
     ACT_SSH_BYPASS = 3,
 };
 
+enum stat_key{
+    STAT_PASS = 0,
+    STAT_DROP = 1,
+    STAT_SKIP = 2,
+};
+
+//Blacklist declaration
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(max_entries, 1024);
+    __type(key, __u32); // for IP
+    __type(value, __u8);// dummy values
+}blacklist SEC(".maps");
+
+//Whitelist declaration
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(max_entries, 1024);
+    __type(key, __u32); // for IP
+    __type(value, __u8);// dummy values
+}whitelist SEC(".maps");
+
 //Stats table declaration
 struct{
     __uint(type,BPF_MAP_TYPE_ARRAY);
@@ -59,6 +67,42 @@ struct {
     __uint(type, BPF_MAP_TYPE_RINGBUF);
     __uint(max_entries, 1<<20); // 1MB
 } events SEC(".maps");
+
+struct{
+    __uint(type, BPF_MAP_TYPE_ARRAY);
+    __uint(max_entries, 1);
+    __type(key, __u32);
+    __type(value, __u64);
+} seq_map SEC(".maps");
+
+static __always_inline void inc_stat(__u32 key){
+    __u64 *v = bpf_map_lookup_elem(&stats, &key);
+    if(v)
+        __sync_fetch_and_add(v, 1);
+}
+
+static __always_inline __u64 next_seq(void){
+    __u32 key = 0;
+    __u64 *v = bpf_map_lookup_elem(&seq_map, &key);
+    if (!v)
+        return 0;
+    return __sync_fetch_and_add(v, 1);
+}
+
+static __always_inline void emit_event(__u32 src, __u32 dst, __u8 proto, __u8 action){
+    struct event *e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
+    if(!e)
+        return;
+
+    e->ts = bpf_ktime_get_boot_ns();
+    e->seq = next_seq();
+    e->src = src;
+    e->dst = dst;
+    e->proto = proto;
+    e->action = action;
+
+    bpf_ringbuf_submit(e, 0);
+}
 
 SEC("xdp")
 int xdp_basic(struct xdp_md *ctx)
@@ -76,6 +120,17 @@ int xdp_basic(struct xdp_md *ctx)
     struct iphdr *ip = (void *)(eth + 1);
     if ((void *)(ip + 1) > data_end)
         return XDP_PASS;
+
+    __u32 ip_hdr_len = ip->ihl * 4;
+    if(ip_hdr_len < sizeof(*ip))
+        return XDP_PASS;
+    if((void *)ip + ip_hdr_len > data_end)
+        return XDP_PASS;
+
+    __u32 src = ip->saddr;
+    __u32 dst = ip->daddr;
+    
+
     // FILTER SSH CONNECTION
     if(ip->protocol == IPPROTO_TCP){
         struct tcphdr *tcp = (void *)ip + ip->ihl * 4;
@@ -83,57 +138,30 @@ int xdp_basic(struct xdp_md *ctx)
             return XDP_PASS;
 
         if(bpf_ntohs(tcp->dest) == 22 ||
-            bpf_ntohs(tcp->source) == 22)
+            bpf_ntohs(tcp->source) == 22){
+            emit_event(src, dst, ip->protocol, ACT_SSH_BYPASS);
                 return XDP_PASS;
+        }
     }
-
-    // BLACK LIST LOGIC
-    __u32 src = ip-> saddr;
-    __u32 dst = ip-> daddr;
-    //Register stats table
-    __u32 drop_key = 1;
-    __u64 *drop = bpf_map_lookup_elem(&stats, &drop_key);
-    __u32 pass_key = 0;
-    __u64 *pass = bpf_map_lookup_elem(&stats, &pass_key);
-    __u32 skip_key = 2;
-    __u64 *skip = bpf_map_lookup_elem(&stats, &skip_key);
-    
-    if (!drop || !pass || !skip)
-    return XDP_PASS;
-    //
-    bpf_printk("SRC=%x DST=%x\n", src, dst);
 
     if(bpf_map_lookup_elem(&blacklist, &src) ||
            bpf_map_lookup_elem(&blacklist, &dst)){
-        __sync_fetch_and_add(drop, 1);
+        inc_stat(STAT_DROP);
+        emit_event(src, dst, ip->protocol, ACT_DROP);
         return XDP_DROP;
     }
 
     if(bpf_map_lookup_elem(&whitelist, &src) ||
            bpf_map_lookup_elem(&whitelist, &dst)){
-        __sync_fetch_and_add(skip, 1);
+        inc_stat(STAT_SKIP);
+        emit_event(src, dst, ip->protocol, ACT_SKIP);
         return XDP_PASS;
     }
 
-
-    struct event *e;
-    e = bpf_ringbuf_reserve(&events,sizeof(*e), 0);
-    if(!e)
-        return XDP_PASS;
-    e->ts = bpf_ktime_get_ns();
-    e->seq = *pass;
-    __sync_fetch_and_add(pass, 1);
-    e->src = ip->saddr;
-    e->dst = ip->daddr;
-    e->proto = ip-> protocol;
-
-    bpf_ringbuf_submit(e, 0);
+    inc_stat(STAT_PASS);
+    emit_event(src, dst, ip->protocol, ACT_PASS);
 
     return XDP_PASS;
-}
-
-void add_to_buffer(){
-    
 }
 
 char LICENSE[] SEC("license") = "GPL";
