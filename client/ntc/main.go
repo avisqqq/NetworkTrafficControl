@@ -29,8 +29,8 @@ func main() {
 		log.Fatal(err)
 	}
 	defer mgr.Close()
-	
-	// SECOND INTERFACE 
+
+	// SECOND INTERFACE
 
 	// mgr2, err := bpf.Load("xdp_ring.bpf.o", "eth0")
 	// if err != nil {
@@ -47,11 +47,12 @@ func main() {
 		for e := range events {
 
 			out := model.OutEvent{
-				Ts:    e.Ts,
-				Seq:   e.Seq,
-				Src:   bpf.Uint32ToIP(e.Src),
-				Dst:   bpf.Uint32ToIP(e.Dst),
-				Proto: e.Proto,
+				Ts:     e.Ts,
+				Seq:    e.Seq,
+				Src:    bpf.Uint32ToIP(e.Src),
+				Dst:    bpf.Uint32ToIP(e.Dst),
+				Proto:  model.ProtoString(e.Proto),
+				Action: model.ParseAction(e.Action).String(),
 			}
 
 			j, err := json.Marshal(out)
@@ -82,14 +83,14 @@ func main() {
 
 	// 		sse.Broadcast(j)
 	// 	}
-	// }()	
+	// }()
 
-
+	port := ":8086"
 	// --- Create HTTP server ---
-	srv := httpapi.NewServer(":8080", mgr, sse)
+	srv := httpapi.NewServer(port, mgr, sse)
 
 	go func() {
-		log.Println("HTTP listening on :8080")
+		log.Println("HTTP listening on" + port)
 		if err := srv.ListenAndServe(); err != nil && err.Error() != "http: Server closed" {
 			log.Fatal(err)
 		}
