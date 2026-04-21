@@ -11,7 +11,7 @@ type Event struct {
 }
 
 type OutEvent struct {
-	Ts     uint64 `json:"ts"`
+	Time   string `json:"time"`
 	Seq    uint64 `json:"seq"`
 	Src    string `json:"src"`
 	Dst    string `json:"dst"`

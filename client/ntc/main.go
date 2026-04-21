@@ -11,10 +11,13 @@ import (
 
 	"client/httpapi"
 	"client/internal/bpf"
+	"client/internal/clock"
 	"client/internal/model"
 )
 
 func main() {
+	// Empty if UTC
+	clk := clock.New("Europe/Warsaw")
 	// Graceful shutdown context
 	ctx, stop := signal.NotifyContext(
 		context.Background(),
@@ -46,8 +49,10 @@ func main() {
 	go func() {
 		for e := range events {
 
+			eventTime := clk.FromTs(e.Ts)
+
 			out := model.OutEvent{
-				Ts:     e.Ts,
+				Time:   eventTime.Format("15:04:05.000"),
 				Seq:    e.Seq,
 				Src:    bpf.Uint32ToIP(e.Src),
 				Dst:    bpf.Uint32ToIP(e.Dst),

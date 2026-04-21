@@ -114,7 +114,7 @@ function addRow(e) {
 		<td><span class="action ${actionCls}">${actionLabel}</span></td>
 		<td>${e.src}</td>
 		<td>${e.dst}</td>
-		<td class="right">${ageMs}ms</td>
+		<td class="right">${e.time}ms</td>
 	`;
 
 	rowsEl.prepend(tr);
