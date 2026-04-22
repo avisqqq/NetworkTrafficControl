@@ -2,6 +2,7 @@
 #include <linux/bpf.h>
 #include <linux/if_ether.h>
 #include <linux/ip.h>
+#include <linux/ipv6.h>
 #include <linux/tcp.h>
 #include <linux/in.h>
 #include <bpf/bpf_helpers.h>
@@ -11,17 +12,23 @@
 #define ETH_P_IP 0x0800
 #endif
 
+#ifndef ETH_P_IPV6
+#define ETH_P_IPV6 0x86DD
+#endif
 
 
 //Single package structure for ring buffer
 struct event {
     __u64 ts;
     __u64 seq;
-    __u32 src;
-    __u32 dst;
+
+    __u8 src[16];
+    __u8 dst[16];
+
     __u8 proto;
     __u8 action;
-    __u8 pad[6]; 
+    __u8 ip_version;
+    __u8 pad[5];
 };
 
 
@@ -37,12 +44,16 @@ enum stat_key{
     STAT_DROP = 1,
     STAT_SKIP = 2,
 };
+struct ip_key{
+    __u8 version;
+    __u8 addr[16];
+};
 
 //Blacklist declaration
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);
     __uint(max_entries, 1024);
-    __type(key, __u32); // for IP
+    __type(key, struct ip_key); // for IP
     __type(value, __u8);// dummy values
 }blacklist SEC(".maps");
 
@@ -50,7 +61,7 @@ struct {
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);
     __uint(max_entries, 1024);
-    __type(key, __u32); // for IP
+    __type(key, struct ip_key); // for IP
     __type(value, __u8);// dummy values
 }whitelist SEC(".maps");
 
@@ -89,19 +100,158 @@ static __always_inline __u64 next_seq(void){
     return __sync_fetch_and_add(v, 1);
 }
 
-static __always_inline void emit_event(__u32 src, __u32 dst, __u8 proto, __u8 action){
+static __always_inline void fill_ipv4_key(
+        struct ip_key *key, 
+        __u32 addr)
+{
+    __builtin_memset(key, 0, sizeof(*key));
+    key->version=4;
+    __builtin_memcpy(key->addr, &addr, 4);
+}
+
+static __always_inline void fill_ipv6_key(
+        struct ip_key *key, 
+        const struct in6_addr *addr)
+{
+    __builtin_memset(key, 0, sizeof(*key));
+    key->version=6;
+    __builtin_memcpy(key->addr, addr, 16);
+}
+
+static __always_inline void emit_event(
+        const __u8 *src, 
+        const __u8 *dst, 
+        __u8 ip_version, 
+        __u8 proto, 
+        __u8 action){
     struct event *e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
     if(!e)
         return;
 
     e->ts = bpf_ktime_get_boot_ns();
     e->seq = next_seq();
-    e->src = src;
-    e->dst = dst;
+    
+    __builtin_memset(e->src, 0, 16);
+    __builtin_memset(e->dst, 0, 16);
+
+    if(ip_version == 4){
+    __builtin_memcpy(e->src, src, 4);
+    __builtin_memcpy(e->dst, dst, 4);
+    }else{
+    __builtin_memcpy(e->src, src, 16);
+    __builtin_memcpy(e->dst, dst, 16);
+    }
+
     e->proto = proto;
     e->action = action;
+    e->ip_version = ip_version;
 
     bpf_ringbuf_submit(e, 0);
+}
+
+static __always_inline int handle_ipv4(
+            void *data_end,
+            struct ethhdr *eth)
+{
+    struct iphdr *ip = (void *)(eth + 1);
+    if ((void *)(ip + 1) > data_end)
+        return XDP_PASS;
+        
+
+
+    __u32 ip_hdr_len =  ip->ihl*4;
+    if(ip_hdr_len < sizeof(*ip))
+        return XDP_PASS;
+    if((void *)ip + ip_hdr_len > data_end)
+        return XDP_PASS;
+      
+    __u32 src = ip->saddr;
+    __u32 dst = ip->daddr;
+    
+
+     struct ip_key src_key;
+     struct ip_key dst_key;
+
+     fill_ipv4_key(&src_key, src);
+     fill_ipv4_key(&dst_key, dst);
+    // FILTER SSH CONNECTION
+    if(ip->protocol == IPPROTO_TCP){
+        struct tcphdr *tcp = (void *)ip + ip_hdr_len;
+        if((void *)(tcp + 1) > data_end)
+            return XDP_PASS;
+
+        if(bpf_ntohs(tcp->dest) == 22 ||
+            bpf_ntohs(tcp->source) == 22){
+            emit_event((const __u8 *)&src, (const __u8 *)&dst,4, ip->protocol, ACT_SSH_BYPASS);
+                return XDP_PASS;
+        }
+    }
+
+
+    if(bpf_map_lookup_elem(&blacklist, &src_key) ||
+           bpf_map_lookup_elem(&blacklist, &dst_key)){
+        inc_stat(STAT_DROP);
+        emit_event((const __u8 *)&src, (const __u8 *)&dst,4, ip->protocol, ACT_DROP);
+        return XDP_DROP;
+    }
+
+    if(bpf_map_lookup_elem(&whitelist, &src_key) ||
+           bpf_map_lookup_elem(&whitelist, &dst_key)){
+        inc_stat(STAT_SKIP);
+        emit_event((const __u8 *)&src, (const __u8 *)&dst,4, ip->protocol, ACT_SKIP);
+        return XDP_PASS;
+    }
+
+    inc_stat(STAT_PASS);
+    emit_event((const __u8 *)&src, (const __u8 *)&dst,4, ip->protocol, ACT_PASS);
+
+    return XDP_PASS;
+}
+
+static __always_inline int handle_ipv6(
+            void *data_end,
+            struct ethhdr *eth)
+{
+    struct ipv6hdr *ipv6 = (void *)(eth + 1);
+    if ((void *)(ipv6 + 1) > data_end)
+        return XDP_PASS;
+        
+    
+     struct ip_key src_key;
+     struct ip_key dst_key;
+
+     fill_ipv6_key(&src_key, &ipv6->saddr);
+     fill_ipv6_key(&dst_key, &ipv6->daddr);
+
+    if(ipv6->nexthdr== IPPROTO_TCP){
+        struct tcphdr *tcp = (void *)(ipv6 + 1); 
+        if((void *)(tcp + 1) > data_end)
+            return XDP_PASS;
+
+        if(bpf_ntohs(tcp->dest) == 22 ||
+            bpf_ntohs(tcp->source) == 22){
+            emit_event((const __u8 *)&ipv6->saddr, (const __u8 *)&ipv6->daddr,6, ipv6->nexthdr, ACT_SSH_BYPASS);
+                return XDP_PASS;
+        }
+    }
+
+    if(bpf_map_lookup_elem(&blacklist, &src_key) ||
+           bpf_map_lookup_elem(&blacklist, &dst_key)){
+        inc_stat(STAT_DROP);
+            emit_event((const __u8 *)&ipv6->saddr, (const __u8 *)&ipv6->daddr,6, ipv6->nexthdr, ACT_DROP);
+        return XDP_DROP;
+    }
+
+    if(bpf_map_lookup_elem(&whitelist, &src_key) ||
+           bpf_map_lookup_elem(&whitelist, &dst_key)){
+        inc_stat(STAT_SKIP);
+            emit_event((const __u8 *)&ipv6->saddr, (const __u8 *)&ipv6->daddr,6, ipv6->nexthdr, ACT_SKIP);
+        return XDP_PASS;
+    }
+
+    inc_stat(STAT_PASS);
+    emit_event((const __u8 *)&ipv6->saddr, (const __u8 *)&ipv6->daddr,6, ipv6->nexthdr, ACT_PASS);
+    return XDP_PASS;
 }
 
 SEC("xdp")
@@ -113,55 +263,15 @@ int xdp_basic(struct xdp_md *ctx)
     struct ethhdr *eth = data;
     if ((void *)(eth + 1) > data_end)
         return XDP_PASS;
-
-    if (bpf_ntohs(eth->h_proto) != ETH_P_IP)
-        return XDP_PASS;
-
-    struct iphdr *ip = (void *)(eth + 1);
-    if ((void *)(ip + 1) > data_end)
-        return XDP_PASS;
-
-    __u32 ip_hdr_len = ip->ihl * 4;
-    if(ip_hdr_len < sizeof(*ip))
-        return XDP_PASS;
-    if((void *)ip + ip_hdr_len > data_end)
-        return XDP_PASS;
-
-    __u32 src = ip->saddr;
-    __u32 dst = ip->daddr;
-    
-
-    // FILTER SSH CONNECTION
-    if(ip->protocol == IPPROTO_TCP){
-        struct tcphdr *tcp = (void *)ip + ip->ihl * 4;
-        if((void *)(tcp + 1) > data_end)
-            return XDP_PASS;
-
-        if(bpf_ntohs(tcp->dest) == 22 ||
-            bpf_ntohs(tcp->source) == 22){
-            emit_event(src, dst, ip->protocol, ACT_SSH_BYPASS);
-                return XDP_PASS;
-        }
+    __u16 h_proto = bpf_ntohs(eth->h_proto);
+    if (h_proto == ETH_P_IP)
+    {
+        return handle_ipv4(data_end ,eth);
     }
-
-    if(bpf_map_lookup_elem(&blacklist, &src) ||
-           bpf_map_lookup_elem(&blacklist, &dst)){
-        inc_stat(STAT_DROP);
-        emit_event(src, dst, ip->protocol, ACT_DROP);
-        return XDP_DROP;
+    if(h_proto == ETH_P_IPV6){
+        return handle_ipv6(data_end ,eth);
     }
-
-    if(bpf_map_lookup_elem(&whitelist, &src) ||
-           bpf_map_lookup_elem(&whitelist, &dst)){
-        inc_stat(STAT_SKIP);
-        emit_event(src, dst, ip->protocol, ACT_SKIP);
-        return XDP_PASS;
-    }
-
-    inc_stat(STAT_PASS);
-    emit_event(src, dst, ip->protocol, ACT_PASS);
-
-    return XDP_PASS;
+               return XDP_PASS;
 }
 
 char LICENSE[] SEC("license") = "GPL";
