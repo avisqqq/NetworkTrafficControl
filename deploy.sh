@@ -114,6 +114,7 @@ if [ "$TARGET" = "rpi-build" ]; then
         /usr/local/go/bin/go build -o ${RPI_DIR}/ntc ./ntc &&
         chmod +x ${RPI_DIR}/ntc &&
         cp ${RPI_DIR}/eBPF/xdp_ring.bpf.o ${RPI_DIR}/xdp_ring.bpf.o &&
+        rm -rf ${RPI_DIR}/web &&
         cp -r ${RPI_DIR}/client/web ${RPI_DIR}/web
     "
 
