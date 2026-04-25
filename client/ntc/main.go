@@ -53,7 +53,7 @@ func main() {
 		events = mock.GenerateEvents(ctx, m)
 	} else {
 		iface := cfg.Network.Interfaces[0]
-		m, err := bpf.Load("xdp_ring.bpf.o", iface)
+		m, err := bpf.Load("xdp_ring.bpf.o", iface, store)
 		if err != nil {
 			log.Fatal(err)
 		}
