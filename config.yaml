@@ -1,0 +1,22 @@
+server:
+  port: 8086
+  timezone: Europe/Warsaw  # IANA timezone, empty = UTC
+
+network:
+  interfaces:
+    - wlan0  # interfaces to attach XDP to
+
+# Future sections (uncomment when features are implemented):
+
+# victoriametrics:
+#   url: http://localhost:8428
+#   push_interval_seconds: 15
+
+# persistence:
+#   path: ./data/lists.json
+
+# alerts:
+#   telegram:
+#     bot_token: ""
+#     chat_id: ""
+#   webhook_url: ""

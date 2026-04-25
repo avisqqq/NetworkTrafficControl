@@ -13,15 +13,22 @@ import (
 	"client/httpapi"
 	"client/internal/bpf"
 	"client/internal/clock"
+	"client/internal/config"
 	"client/internal/mock"
 	"client/internal/model"
 )
 
 func main() {
 	mockMode := flag.Bool("mock", false, "run with synthetic packet generator (no eBPF required)")
+	configPath := flag.String("config", "config.yaml", "path to YAML config file")
 	flag.Parse()
 
-	clk := clock.New("Europe/Warsaw")
+	cfg, err := config.Load(*configPath)
+	if err != nil {
+		log.Fatalf("config: %v", err)
+	}
+
+	clk := clock.New(cfg.Server.Timezone)
 
 	ctx, stop := signal.NotifyContext(
 		context.Background(),
@@ -39,7 +46,8 @@ func main() {
 		mgr = m
 		events = mock.GenerateEvents(ctx, m)
 	} else {
-		m, err := bpf.Load("xdp_ring.bpf.o", "wlan0")
+		iface := cfg.Network.Interfaces[0]
+		m, err := bpf.Load("xdp_ring.bpf.o", iface)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -72,11 +80,11 @@ func main() {
 		}
 	}()
 
-	port := ":8086"
-	srv := httpapi.NewServer(port, mgr, sse)
+	addr := cfg.ServerAddr()
+	srv := httpapi.NewServer(addr, mgr, sse)
 
 	go func() {
-		log.Println("HTTP listening on" + port)
+		log.Printf("HTTP listening on %s", addr)
 		if err := srv.ListenAndServe(); err != nil && err.Error() != "http: Server closed" {
 			log.Fatal(err)
 		}
