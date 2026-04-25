@@ -8,8 +8,13 @@ import (
 )
 
 type Config struct {
-	Server  ServerConfig  `yaml:"server"`
-	Network NetworkConfig `yaml:"network"`
+	Server      ServerConfig      `yaml:"server"`
+	Network     NetworkConfig     `yaml:"network"`
+	Persistence PersistenceConfig `yaml:"persistence"`
+}
+
+type PersistenceConfig struct {
+	Path string `yaml:"path"`
 }
 
 type ServerConfig struct {
@@ -32,6 +37,9 @@ var defaults = Config{
 	},
 	Network: NetworkConfig{
 		Interfaces: []string{"wlan0"},
+	},
+	Persistence: PersistenceConfig{
+		Path: "./data/lists.json",
 	},
 }
 

@@ -2,22 +2,65 @@ package mock
 
 import (
 	"fmt"
+	"log"
 	"net"
 	"sync"
 
 	"client/internal/model"
+	"client/internal/persist"
 )
 
 type Manager struct {
 	mu        sync.RWMutex
 	blacklist map[string]model.Ip_Key
 	whitelist map[string]model.Ip_Key
+	store     *persist.Store
 }
 
-func NewManager() *Manager {
-	return &Manager{
+func NewManager(store *persist.Store) *Manager {
+	m := &Manager{
 		blacklist: make(map[string]model.Ip_Key),
 		whitelist: make(map[string]model.Ip_Key),
+		store:     store,
+	}
+	if store != nil {
+		m.loadFromStore()
+	}
+	return m
+}
+
+func (m *Manager) loadFromStore() {
+	bl, wl, err := m.store.Load()
+	if err != nil {
+		log.Printf("persist: load failed: %v", err)
+		return
+	}
+	for _, ip := range bl {
+		if key, err := buildKey(ip); err == nil {
+			m.blacklist[ip] = key
+		}
+	}
+	for _, ip := range wl {
+		if key, err := buildKey(ip); err == nil {
+			m.whitelist[ip] = key
+		}
+	}
+}
+
+func (m *Manager) save() {
+	if m.store == nil {
+		return
+	}
+	bl := make([]string, 0, len(m.blacklist))
+	for ip := range m.blacklist {
+		bl = append(bl, ip)
+	}
+	wl := make([]string, 0, len(m.whitelist))
+	for ip := range m.whitelist {
+		wl = append(wl, ip)
+	}
+	if err := m.store.Save(bl, wl); err != nil {
+		log.Printf("persist: save failed: %v", err)
 	}
 }
 
@@ -28,6 +71,7 @@ func (m *Manager) AddToBlackList(ip string) (model.Ip_Key, error) {
 	}
 	m.mu.Lock()
 	m.blacklist[ip] = key
+	m.save()
 	m.mu.Unlock()
 	return key, nil
 }
@@ -39,6 +83,7 @@ func (m *Manager) RemoveFromBlackList(ip string) (model.Ip_Key, error) {
 	}
 	m.mu.Lock()
 	delete(m.blacklist, ip)
+	m.save()
 	m.mu.Unlock()
 	return key, nil
 }
@@ -56,6 +101,7 @@ func (m *Manager) AddToWhiteList(ip string) (model.Ip_Key, error) {
 	}
 	m.mu.Lock()
 	m.whitelist[ip] = key
+	m.save()
 	m.mu.Unlock()
 	return key, nil
 }
@@ -67,6 +113,7 @@ func (m *Manager) RemoveFromWhiteList(ip string) (model.Ip_Key, error) {
 	}
 	m.mu.Lock()
 	delete(m.whitelist, ip)
+	m.save()
 	m.mu.Unlock()
 	return key, nil
 }

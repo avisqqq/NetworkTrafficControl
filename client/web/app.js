@@ -68,10 +68,10 @@ function renderList(data) {
 
 	for (const ip of data) {
 		const li = document.createElement('li');
-		li.textContent = ip;
+		li.textContent = ip.ip;
 
 		li.onclick = () => {
-			ipInputEl.value = ip;
+			ipInputEl.value = ip.ip;
 		};
 
 		listEl.appendChild(li);

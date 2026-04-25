@@ -16,6 +16,7 @@ import (
 	"client/internal/config"
 	"client/internal/mock"
 	"client/internal/model"
+	"client/internal/persist"
 )
 
 func main() {
@@ -40,9 +41,14 @@ func main() {
 	var mgr httpapi.ListManager
 	var events <-chan model.Event
 
+	store, err := persist.New(cfg.Persistence.Path)
+	if err != nil {
+		log.Fatalf("persist: %v", err)
+	}
+
 	if *mockMode {
 		log.Println("Starting in mock mode — synthetic traffic generator active")
-		m := mock.NewManager()
+		m := mock.NewManager(store)
 		mgr = m
 		events = mock.GenerateEvents(ctx, m)
 	} else {
