@@ -53,7 +53,7 @@ func main() {
 		events = mock.GenerateEvents(ctx, m)
 	} else {
 		iface := cfg.Network.Interfaces[0]
-		m, err := bpf.Load("tc_filter.bpf.o", iface, store)
+		m, err := bpf.Load("xdp_ring.bpf.o", iface, store)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -69,13 +69,12 @@ func main() {
 			eventTime := clk.FromTs(e.Ts)
 
 			out := model.OutEvent{
-				Time:      eventTime.Format("15:04:05.000"),
-				Seq:       e.Seq,
-				Src:       bpf.ParseIp(e.Src, e.Ip_Version),
-				Dst:       bpf.ParseIp(e.Dst, e.Ip_Version),
-				Proto:     model.ProtoString(e.Proto),
-				Action:    model.ParseAction(e.Action).String(),
-				Direction: model.ParseDirection(e.Direction),
+				Time:   eventTime.Format("15:04:05.000"),
+				Seq:    e.Seq,
+				Src:    bpf.ParseIp(e.Src, e.Ip_Version),
+				Dst:    bpf.ParseIp(e.Dst, e.Ip_Version),
+				Proto:  model.ProtoString(e.Proto),
+				Action: model.ParseAction(e.Action).String(),
 			}
 
 			j, err := json.Marshal(out)

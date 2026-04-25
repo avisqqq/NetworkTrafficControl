@@ -12,30 +12,16 @@ type Event struct {
 	Proto      uint8
 	Action     uint8
 	Ip_Version uint8
-	Direction  uint8
-	Pad        [4]byte
-}
-
-const (
-	DirIngress uint8 = 0
-	DirEgress  uint8 = 1
-)
-
-func ParseDirection(d uint8) string {
-	if d == DirEgress {
-		return "EGRESS"
-	}
-	return "INGRESS"
+	Pad        [5]byte
 }
 
 type OutEvent struct {
-	Time      string `json:"time"`
-	Seq       uint64 `json:"seq"`
-	Src       string `json:"src"`
-	Dst       string `json:"dst"`
-	Proto     string `json:"proto"`
-	Action    string `json:"action"`
-	Direction string `json:"direction"`
+	Time   string `json:"time"`
+	Seq    uint64 `json:"seq"`
+	Src    string `json:"src"`
+	Dst    string `json:"dst"`
+	Proto  string `json:"proto"`
+	Action string `json:"action"`
 }
 
 type Action uint8
