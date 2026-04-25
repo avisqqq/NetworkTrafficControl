@@ -1,5 +1,7 @@
 package model
 
+import "net"
+
 type Event struct {
 	Ts  uint64
 	Seq uint64
@@ -70,6 +72,13 @@ func ProtoString(p uint8) string {
 type Ip_Key struct {
 	Version uint8
 	Address [16]byte
+}
+
+func ParseIP(k Ip_Key) string {
+	if k.Version == 4 {
+		return net.IP(k.Address[:4]).String()
+	}
+	return net.IP(k.Address[:16]).String()
 }
 
 type IpEntry struct {

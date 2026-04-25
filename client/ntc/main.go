@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"flag"
 	"log"
 	"os"
 	"os/signal"
@@ -12,13 +13,16 @@ import (
 	"client/httpapi"
 	"client/internal/bpf"
 	"client/internal/clock"
+	"client/internal/mock"
 	"client/internal/model"
 )
 
 func main() {
-	// Empty if UTC
+	mockMode := flag.Bool("mock", false, "run with synthetic packet generator (no eBPF required)")
+	flag.Parse()
+
 	clk := clock.New("Europe/Warsaw")
-	// Graceful shutdown context
+
 	ctx, stop := signal.NotifyContext(
 		context.Background(),
 		os.Interrupt,
@@ -26,29 +30,28 @@ func main() {
 	)
 	defer stop()
 
-	// --- Load BPF + attach XDP ---
-	mgr, err := bpf.Load("xdp_ring.bpf.o", "wlan0")
-	if err != nil {
-		log.Fatal(err)
+	var mgr httpapi.ListManager
+	var events <-chan model.Event
+
+	if *mockMode {
+		log.Println("Starting in mock mode — synthetic traffic generator active")
+		m := mock.NewManager()
+		mgr = m
+		events = mock.GenerateEvents(ctx, m)
+	} else {
+		m, err := bpf.Load("xdp_ring.bpf.o", "wlan0")
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer m.Close()
+		mgr = m
+		events = bpf.ReadEvents(ctx, m.Events)
 	}
-	defer mgr.Close()
 
-	// SECOND INTERFACE
-
-	// mgr2, err := bpf.Load("xdp_ring.bpf.o", "eth0")
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
-	// defer mgr2.Close()
-	// --- Create SSE hub ---
 	sse := httpapi.NewSSE()
-
-	// --- Start ringbuf reader ---
-	events := bpf.ReadEvents(ctx, mgr.Events)
 
 	go func() {
 		for e := range events {
-
 			eventTime := clk.FromTs(e.Ts)
 
 			out := model.OutEvent{
@@ -69,29 +72,7 @@ func main() {
 		}
 	}()
 
-	// events2 := bpf.ReadEvents(ctx, mgr2.Events)
-	// go func() {
-	// 	for e := range events2 {
-
-	// 		out := model.OutEvent{
-	// 			Ts:    e.Ts,
-	// 			Seq:   e.Seq,
-	// 			Src:   bpf.Uint32ToIP(e.Src),
-	// 			Dst:   bpf.Uint32ToIP(e.Dst),
-	// 			Proto: e.Proto,
-	// 		}
-
-	// 		j, err := json.Marshal(out)
-	// 		if err != nil {
-	// 			continue
-	// 		}
-
-	// 		sse.Broadcast(j)
-	// 	}
-	// }()
-
 	port := ":8086"
-	// --- Create HTTP server ---
 	srv := httpapi.NewServer(port, mgr, sse)
 
 	go func() {
@@ -101,7 +82,6 @@ func main() {
 		}
 	}()
 
-	// --- Wait for shutdown ---
 	<-ctx.Done()
 	log.Println("Shutting down...")
 
@@ -109,8 +89,4 @@ func main() {
 	defer cancel()
 
 	_ = srv.Shutdown(shutdownCtx)
-
-	mgr.Close() // ← this is required
-
-	return
 }
