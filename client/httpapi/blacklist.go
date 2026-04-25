@@ -11,16 +11,20 @@ func BlacklistHandler(mgr *bpf.Manager) http.HandlerFunc {
 		switch r.Method {
 
 		case http.MethodPost:
-			var req BlacklistReq
+			var req IpRequest
 			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 				http.Error(w, "bad json", 400)
 				return
 			}
-			if err := mgr.AddToBlackList(req.IP); err != nil {
+			key, err := mgr.AddToBlackList(req.IP)
+			if err != nil {
 				http.Error(w, err.Error(), 400)
 				return
 			}
-			json.NewEncoder(w).Encode(BlacklistResp{OK: true, IP: req.IP})
+			json.NewEncoder(w).Encode(IpResponse{
+				OK:      true,
+				IP:      bpf.ParseIpKey(key),
+				Version: key.Version})
 
 		case http.MethodDelete:
 			ip := r.URL.Query().Get("ip")
@@ -29,11 +33,14 @@ func BlacklistHandler(mgr *bpf.Manager) http.HandlerFunc {
 				return
 			}
 
-			if err := mgr.RemoveFromBlackList(ip); err != nil {
+			key, err := mgr.RemoveFromBlackList(ip)
+			if err != nil {
 				http.Error(w, err.Error(), 400)
 				return
 			}
-			json.NewEncoder(w).Encode(BlacklistResp{OK: true, IP: ip})
+			json.NewEncoder(w).Encode(IpResponse{
+				OK: true,
+				IP: bpf.ParseIpKey(key)})
 		case http.MethodGet:
 			list, err := mgr.GetFromBlackList()
 			if err != nil {

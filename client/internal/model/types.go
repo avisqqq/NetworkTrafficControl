@@ -1,13 +1,16 @@
 package model
 
 type Event struct {
-	Ts     uint64
-	Seq    uint64
-	Src    uint32
-	Dst    uint32
-	Proto  uint8
-	Action uint8
-	Pad    [6]byte
+	Ts  uint64
+	Seq uint64
+
+	Src [16]uint8
+	Dst [16]uint8
+
+	Proto      uint8
+	Action     uint8
+	Ip_Version uint8
+	Pad        [5]byte
 }
 
 type OutEvent struct {
@@ -62,4 +65,14 @@ func ProtoString(p uint8) string {
 	default:
 		return "OTHER"
 	}
+}
+
+type Ip_Key struct {
+	Version uint8
+	Address [16]byte
+}
+
+type IpEntry struct {
+	IP      string `json:"ip"`
+	Version uint8  `json:"version"`
 }

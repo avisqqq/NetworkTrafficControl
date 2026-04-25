@@ -54,8 +54,8 @@ func main() {
 			out := model.OutEvent{
 				Time:   eventTime.Format("15:04:05.000"),
 				Seq:    e.Seq,
-				Src:    bpf.Uint32ToIP(e.Src),
-				Dst:    bpf.Uint32ToIP(e.Dst),
+				Src:    bpf.ParseIp(e.Src, e.Ip_Version),
+				Dst:    bpf.ParseIp(e.Dst, e.Ip_Version),
 				Proto:  model.ProtoString(e.Proto),
 				Action: model.ParseAction(e.Action).String(),
 			}

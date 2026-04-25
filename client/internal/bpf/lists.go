@@ -1,9 +1,12 @@
 package bpf
 
 import (
+	"client/internal/model"
 	"encoding/binary"
 	"fmt"
 	"net"
+
+	"github.com/cilium/ebpf"
 )
 
 func Uint32ToIP(v uint32) string {
@@ -19,34 +22,81 @@ func IpToUint32(ipStr string) (uint32, error) {
 	}
 	return binary.LittleEndian.Uint32(ip), nil
 }
+func BuildIpKey(ipString string) (model.Ip_Key, error) {
+	var key model.Ip_Key
 
-func (m *Manager) AddToBlackList(ipStr string) error {
-	key, err := IpToUint32(ipStr)
+	ip := net.ParseIP(ipString)
+	if ip == nil {
+		return key, fmt.Errorf("Invalid IP")
+	}
+	if ipv4 := ip.To4(); ipv4 != nil {
+		key.Version = 4
+		copy(key.Address[:4], ipv4)
+		return key, nil
+	}
+
+	ipv6 := ip.To16()
+	if ipv6 == nil {
+		return key, fmt.Errorf("Invalid IP")
+	}
+
+	key.Version = 6
+	copy(key.Address[:], ipv6)
+	return key, nil
+}
+
+// ??? DO NEED
+func ParseIp(raw [16]byte, version uint8) string {
+	if version == 4 {
+		return net.IP(raw[:4]).String()
+	}
+	return net.IP(raw[:16]).String()
+}
+
+func ParseIpKey(key model.Ip_Key) string {
+	if key.Version == 4 {
+		return net.IP(key.Address[:4]).String()
+	}
+	return net.IP(key.Address[:16]).String()
+}
+
+func AddIpToList(m *ebpf.Map, ipStr string) (model.Ip_Key, error) {
+	key, err := BuildIpKey(ipStr)
 	if err != nil {
-		return err
+		return key, err
 	}
 	val := uint8(1)
-	return m.Blacklist.Put(key, val)
-}
-
-func (m *Manager) RemoveFromBlackList(ipStr string) error {
-	key, err := IpToUint32(ipStr)
-	if err != nil {
-		return err
+	if err := m.Put(key, val); err != nil {
+		return key, err
 	}
-	return m.Blacklist.Delete(key)
+	return key, nil
 }
 
-func (m *Manager) GetFromBlackList() ([]string, error) {
-	var result []string
-	iter := m.Blacklist.Iterate()
+func RemoveIpFrom(m *ebpf.Map, ipStr string) (model.Ip_Key, error) {
+	key, err := BuildIpKey(ipStr)
+	if err != nil {
+		return key, err
+	}
+	if err := m.Delete(key); err != nil {
+		return key, err
+	}
+	return key, nil
+}
 
-	var key uint32
+func GetIpFromList(m *ebpf.Map) ([]model.IpEntry, error) {
+
+	var result []model.IpEntry
+	iter := m.Iterate()
+
+	var key model.Ip_Key
 	var value uint8
 
 	for iter.Next(&key, &value) {
-		ip := Uint32ToIP(key)
-		result = append(result, ip)
+		ip := ParseIpKey(key)
+		result = append(result, model.IpEntry{
+			IP:      ip,
+			Version: key.Version,
+		})
 	}
 
 	if err := iter.Err(); err != nil {
@@ -54,38 +104,4 @@ func (m *Manager) GetFromBlackList() ([]string, error) {
 	}
 
 	return result, nil
-}
-func (m *Manager) GetFromWhiteList() ([]string, error) {
-	var result []string
-	iter := m.Whitelist.Iterate()
-
-	var key uint32
-	var value uint8
-
-	for iter.Next(&key, &value) {
-		ip := Uint32ToIP(key)
-		result = append(result, ip)
-	}
-
-	if err := iter.Err(); err != nil {
-		return nil, err
-	}
-
-	return result, nil
-}
-func (m *Manager) AddToWhiteList(ipStr string) error {
-	key, err := IpToUint32(ipStr)
-	if err != nil {
-		return err
-	}
-	val := uint8(1)
-	return m.Whitelist.Put(key, val)
-}
-
-func (m *Manager) RemoveFromWhiteList(ipStr string) error {
-	key, err := IpToUint32(ipStr)
-	if err != nil {
-		return err
-	}
-	return m.Whitelist.Delete(key)
 }
