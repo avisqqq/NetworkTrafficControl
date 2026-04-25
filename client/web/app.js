@@ -57,8 +57,8 @@ removeBtn.onclick = async () => {
 	ipInputEl.value = '';
 	loadList();
 }
-refreshBtn.onclick = loadList();
-listTypeEl.onchange = loadList();
+refreshBtn.onclick = loadList;
+listTypeEl.onchange = loadList;
 
 function renderList(data) {
 	if (data == null) {
@@ -89,7 +89,9 @@ function matchesFilter(e) {
 	if (!q) return true;
 	return (
 		String(e.seq).includes(q) ||
-		String(e.proto).includes(q) ||
+		(e.proto || '').toLowerCase().includes(q) ||
+		(e.action || '').toLowerCase().includes(q) ||
+		(e.direction || '').toLowerCase().includes(q) ||
 		(e.src || '').toLowerCase().includes(q) ||
 		(e.dst || '').toLowerCase().includes(q)
 	);
@@ -99,22 +101,19 @@ function addRow(e) {
 	if (paused) return;
 	if (!matchesFilter(e)) return;
 
-	const protoCls = e.proto.toLowerCase();
-	const protoLabel = e.proto;
+	const protoCls = (e.proto || 'other').toLowerCase();
+	const actionCls = (e.action || '').toLowerCase();
+	const dirCls = (e.direction || 'ingress').toLowerCase();
 
-	const actionCls = e.action.toLowerCase();
-	const actionLabel = e.action;
-
-	const ageMs = Math.max(0, Math.round(performance.now() - t0));
 	const tr = document.createElement('tr');
-	tr.innerHTML =
-		`
-		<td class="right"> ${e.seq}</td>
-		<td><span class="proto ${protoCls}">${protoLabel}</span></td>
-		<td><span class="action ${actionCls}">${actionLabel}</span></td>
-		<td>${e.src}</td>
-		<td>${e.dst}</td>
-		<td class="right">${e.time}ms</td>
+	tr.innerHTML = `
+		<td class="right">${e.seq}</td>
+		<td class="mono muted">${e.time}</td>
+		<td><span class="dir ${dirCls}">${e.direction || '—'}</span></td>
+		<td><span class="proto ${protoCls}">${e.proto || '—'}</span></td>
+		<td><span class="action ${actionCls}">${e.action || '—'}</span></td>
+		<td class="mono">${e.src}</td>
+		<td class="mono">${e.dst}</td>
 	`;
 
 	rowsEl.prepend(tr);
