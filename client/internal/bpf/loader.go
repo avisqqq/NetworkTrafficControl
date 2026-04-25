@@ -12,12 +12,13 @@ import (
 )
 
 type Manager struct {
-	Coll      *ebpf.Collection
-	Link      link.Link
-	Events    *ringbuf.Reader
-	Blacklist *ebpf.Map
-	Whitelist *ebpf.Map
-	store     *persist.Store
+	Coll        *ebpf.Collection
+	IngressLink link.Link
+	EgressLink  link.Link
+	Events      *ringbuf.Reader
+	Blacklist   *ebpf.Map
+	Whitelist   *ebpf.Map
+	store       *persist.Store
 }
 
 func Load(objPath, ifaceName string, store *persist.Store) (*Manager, error) {
@@ -37,31 +38,43 @@ func Load(objPath, ifaceName string, store *persist.Store) (*Manager, error) {
 		return nil, err
 	}
 
-	prog := coll.Programs["xdp_basic"]
-
-	lnk, err := link.AttachXDP(link.XDPOptions{
-		Program:   prog,
+	ingressLink, err := link.AttachTCX(link.TCXOptions{
 		Interface: iface.Index,
+		Attach:    ebpf.AttachTCXIngress,
+		Program:   coll.Programs["tc_ingress"],
 	})
 	if err != nil {
 		coll.Close()
 		return nil, err
 	}
 
+	egressLink, err := link.AttachTCX(link.TCXOptions{
+		Interface: iface.Index,
+		Attach:    ebpf.AttachTCXEgress,
+		Program:   coll.Programs["tc_egress"],
+	})
+	if err != nil {
+		ingressLink.Close()
+		coll.Close()
+		return nil, err
+	}
+
 	rd, err := ringbuf.NewReader(coll.Maps["events"])
 	if err != nil {
-		lnk.Close()
+		egressLink.Close()
+		ingressLink.Close()
 		coll.Close()
 		return nil, err
 	}
 
 	m := &Manager{
-		Coll:      coll,
-		Link:      lnk,
-		Events:    rd,
-		Blacklist: coll.Maps["blacklist"],
-		Whitelist: coll.Maps["whitelist"],
-		store:     store,
+		Coll:        coll,
+		IngressLink: ingressLink,
+		EgressLink:  egressLink,
+		Events:      rd,
+		Blacklist:   coll.Maps["blacklist"],
+		Whitelist:   coll.Maps["whitelist"],
+		store:       store,
 	}
 	if store != nil {
 		m.loadFromStore()
@@ -116,6 +129,7 @@ func (m *Manager) save() {
 
 func (m *Manager) Close() {
 	m.Events.Close()
-	m.Link.Close()
+	m.EgressLink.Close()
+	m.IngressLink.Close()
 	m.Coll.Close()
 }
