@@ -20,18 +20,7 @@ func New(tz string) *Clock {
 		}
 	}
 
-	data, err := os.ReadFile("/proc/uptime")
-	if err != nil {
-		panic(err)
-	}
-
-	fields := strings.Fields(string(data))
-	uptimeSec, err := strconv.ParseFloat(fields[0], 64)
-	if err != nil {
-		panic(err)
-	}
-
-	boot := time.Now().Add(-time.Duration(uptimeSec * float64(time.Second)))
+	boot := bootTime()
 
 	return &Clock{
 		boot: boot,
@@ -40,5 +29,28 @@ func New(tz string) *Clock {
 }
 
 func (c *Clock) FromTs(ts uint64) time.Time {
-	return c.boot.Add(time.Duration(ts)).In(c.loc) // remove In if want UTC
+	return c.boot.Add(time.Duration(ts)).In(c.loc)
+}
+
+// bootTime returns the system boot time derived from /proc/uptime.
+// On systems where /proc/uptime is unavailable (e.g. macOS in mock mode),
+// it falls back to the Unix epoch so that Unix-nanosecond timestamps
+// produced by the mock generator are interpreted correctly.
+func bootTime() time.Time {
+	data, err := os.ReadFile("/proc/uptime")
+	if err != nil {
+		return time.Unix(0, 0)
+	}
+
+	fields := strings.Fields(string(data))
+	if len(fields) == 0 {
+		return time.Unix(0, 0)
+	}
+
+	uptimeSec, err := strconv.ParseFloat(fields[0], 64)
+	if err != nil {
+		return time.Unix(0, 0)
+	}
+
+	return time.Now().Add(-time.Duration(uptimeSec * float64(time.Second)))
 }

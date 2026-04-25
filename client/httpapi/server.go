@@ -3,10 +3,19 @@ package httpapi
 import (
 	"net/http"
 
-	"client/internal/bpf"
+	"client/internal/model"
 )
 
-func NewServer(addr string, mgr *bpf.Manager, sse *SSE) *http.Server {
+type ListManager interface {
+	AddToBlackList(ip string) (model.Ip_Key, error)
+	RemoveFromBlackList(ip string) (model.Ip_Key, error)
+	GetFromBlackList() ([]model.IpEntry, error)
+	AddToWhiteList(ip string) (model.Ip_Key, error)
+	RemoveFromWhiteList(ip string) (model.Ip_Key, error)
+	GetFromWhiteList() ([]model.IpEntry, error)
+}
+
+func NewServer(addr string, mgr ListManager, sse *SSE) *http.Server {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/events", sse.Handler)

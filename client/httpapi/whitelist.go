@@ -1,12 +1,13 @@
 package httpapi
 
 import (
-	"client/internal/bpf"
 	"encoding/json"
 	"net/http"
+
+	"client/internal/model"
 )
 
-func WhitelistHandler(mgr *bpf.Manager) http.HandlerFunc {
+func WhitelistHandler(mgr ListManager) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 
@@ -23,8 +24,9 @@ func WhitelistHandler(mgr *bpf.Manager) http.HandlerFunc {
 			}
 			json.NewEncoder(w).Encode(IpResponse{
 				OK:      true,
-				IP:      bpf.ParseIpKey(key),
-				Version: key.Version})
+				IP:      model.ParseIP(key),
+				Version: key.Version,
+			})
 
 		case http.MethodDelete:
 			ip := r.URL.Query().Get("ip")
@@ -32,7 +34,6 @@ func WhitelistHandler(mgr *bpf.Manager) http.HandlerFunc {
 				http.Error(w, "missing ip", 400)
 				return
 			}
-
 			key, err := mgr.RemoveFromWhiteList(ip)
 			if err != nil {
 				http.Error(w, err.Error(), 400)
@@ -40,7 +41,9 @@ func WhitelistHandler(mgr *bpf.Manager) http.HandlerFunc {
 			}
 			json.NewEncoder(w).Encode(IpResponse{
 				OK: true,
-				IP: bpf.ParseIpKey(key)})
+				IP: model.ParseIP(key),
+			})
+
 		case http.MethodGet:
 			list, err := mgr.GetFromWhiteList()
 			if err != nil {

@@ -5,11 +5,19 @@ import (
 )
 
 func (m *Manager) AddToBlackList(ip string) (model.Ip_Key, error) {
-	return AddIpToList(m.Blacklist, ip)
+	key, err := AddIpToList(m.Blacklist, ip)
+	if err == nil {
+		m.save()
+	}
+	return key, err
 }
 
 func (m *Manager) RemoveFromBlackList(ip string) (model.Ip_Key, error) {
-	return RemoveIpFrom(m.Blacklist, ip)
+	key, err := RemoveIpFrom(m.Blacklist, ip)
+	if err == nil {
+		m.save()
+	}
+	return key, err
 }
 
 func (m *Manager) GetFromBlackList() ([]model.IpEntry, error) {
@@ -17,11 +25,19 @@ func (m *Manager) GetFromBlackList() ([]model.IpEntry, error) {
 }
 
 func (m *Manager) AddToWhiteList(ip string) (model.Ip_Key, error) {
-	return AddIpToList(m.Whitelist, ip)
+	key, err := AddIpToList(m.Whitelist, ip)
+	if err == nil {
+		m.save()
+	}
+	return key, err
 }
 
 func (m *Manager) RemoveFromWhiteList(ip string) (model.Ip_Key, error) {
-	return RemoveIpFrom(m.Whitelist, ip)
+	key, err := RemoveIpFrom(m.Whitelist, ip)
+	if err == nil {
+		m.save()
+	}
+	return key, err
 }
 
 func (m *Manager) GetFromWhiteList() ([]model.IpEntry, error) {

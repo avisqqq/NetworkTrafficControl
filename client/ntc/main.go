@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"flag"
 	"log"
 	"os"
 	"os/signal"
@@ -12,13 +13,24 @@ import (
 	"client/httpapi"
 	"client/internal/bpf"
 	"client/internal/clock"
+	"client/internal/config"
+	"client/internal/mock"
 	"client/internal/model"
+	"client/internal/persist"
 )
 
 func main() {
-	// Empty if UTC
-	clk := clock.New("Europe/Warsaw")
-	// Graceful shutdown context
+	mockMode := flag.Bool("mock", false, "run with synthetic packet generator (no eBPF required)")
+	configPath := flag.String("config", "config.yaml", "path to YAML config file")
+	flag.Parse()
+
+	cfg, err := config.Load(*configPath)
+	if err != nil {
+		log.Fatalf("config: %v", err)
+	}
+
+	clk := clock.New(cfg.Server.Timezone)
+
 	ctx, stop := signal.NotifyContext(
 		context.Background(),
 		os.Interrupt,
@@ -26,29 +38,34 @@ func main() {
 	)
 	defer stop()
 
-	// --- Load BPF + attach XDP ---
-	mgr, err := bpf.Load("xdp_ring.bpf.o", "wlan0")
+	var mgr httpapi.ListManager
+	var events <-chan model.Event
+
+	store, err := persist.New(cfg.Persistence.Path)
 	if err != nil {
-		log.Fatal(err)
+		log.Fatalf("persist: %v", err)
 	}
-	defer mgr.Close()
 
-	// SECOND INTERFACE
+	if *mockMode {
+		log.Println("Starting in mock mode — synthetic traffic generator active")
+		m := mock.NewManager(store)
+		mgr = m
+		events = mock.GenerateEvents(ctx, m)
+	} else {
+		iface := cfg.Network.Interfaces[0]
+		m, err := bpf.Load("xdp_ring.bpf.o", iface, store)
+		if err != nil {
+			log.Fatal(err)
+		}
+		defer m.Close()
+		mgr = m
+		events = bpf.ReadEvents(ctx, m.Events)
+	}
 
-	// mgr2, err := bpf.Load("xdp_ring.bpf.o", "eth0")
-	// if err != nil {
-	// 	log.Fatal(err)
-	// }
-	// defer mgr2.Close()
-	// --- Create SSE hub ---
 	sse := httpapi.NewSSE()
-
-	// --- Start ringbuf reader ---
-	events := bpf.ReadEvents(ctx, mgr.Events)
 
 	go func() {
 		for e := range events {
-
 			eventTime := clk.FromTs(e.Ts)
 
 			out := model.OutEvent{
@@ -69,39 +86,16 @@ func main() {
 		}
 	}()
 
-	// events2 := bpf.ReadEvents(ctx, mgr2.Events)
-	// go func() {
-	// 	for e := range events2 {
-
-	// 		out := model.OutEvent{
-	// 			Ts:    e.Ts,
-	// 			Seq:   e.Seq,
-	// 			Src:   bpf.Uint32ToIP(e.Src),
-	// 			Dst:   bpf.Uint32ToIP(e.Dst),
-	// 			Proto: e.Proto,
-	// 		}
-
-	// 		j, err := json.Marshal(out)
-	// 		if err != nil {
-	// 			continue
-	// 		}
-
-	// 		sse.Broadcast(j)
-	// 	}
-	// }()
-
-	port := ":8086"
-	// --- Create HTTP server ---
-	srv := httpapi.NewServer(port, mgr, sse)
+	addr := cfg.ServerAddr()
+	srv := httpapi.NewServer(addr, mgr, sse)
 
 	go func() {
-		log.Println("HTTP listening on" + port)
+		log.Printf("HTTP listening on %s", addr)
 		if err := srv.ListenAndServe(); err != nil && err.Error() != "http: Server closed" {
 			log.Fatal(err)
 		}
 	}()
 
-	// --- Wait for shutdown ---
 	<-ctx.Done()
 	log.Println("Shutting down...")
 
@@ -109,8 +103,4 @@ func main() {
 	defer cancel()
 
 	_ = srv.Shutdown(shutdownCtx)
-
-	mgr.Close() // ← this is required
-
-	return
 }

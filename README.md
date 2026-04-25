@@ -1,95 +1,154 @@
 # NetworkTrafficControl
 
-NetworkTrafficControl is a Linux XDP/eBPF traffic monitor and controller. It attaches an XDP program to a network interface, streams packet events to a Go HTTP server, and exposes a small web UI plus API endpoints for managing blacklist and whitelist IP maps.
+NetworkTrafficControl is a Linux XDP/eBPF traffic monitor and controller. It attaches an XDP program to a network interface, streams packet events to a Go HTTP server, and exposes a web UI plus API endpoints for managing blacklist and whitelist IP maps.
 
 ## Features
 
 - XDP packet inspection for IPv4 and IPv6 traffic.
-- Blacklist support for dropping packets by source or destination IP.
+- Blacklist support for dropping packets by source IP.
 - Whitelist support for allowing traffic while marking events as skipped.
 - SSH traffic bypass on TCP port 22.
 - Ring buffer event stream from eBPF to user space.
 - Browser UI served from `client/web`.
 - HTTP API for event streaming and list management.
+- Blacklist and whitelist persisted to JSON file — survives restarts.
+- Mock mode (`--mock`) for local development without eBPF or Raspberry Pi.
+- YAML config file for port, timezone, interface, and persistence path.
 
 ## Repository Layout
 
 ```text
 .
-├── deploy.sh                 # Builds eBPF and Go artifacts, then copies them to execute/ or Raspberry Pi
+├── deploy.sh               # Build and deploy script (see targets below)
+├── deploy.env              # Local RPi connection config (gitignored, copy from deploy.env.example)
+├── deploy.env.example      # Template for deploy.env
+├── config.yaml             # Runtime configuration
 ├── eBPF/
-│   └── xdp_ring.bpf.c        # XDP/eBPF program
-├── client/
-│   ├── ntc/main.go           # Go entrypoint
-│   ├── httpapi/              # HTTP handlers and SSE endpoint
-│   ├── internal/bpf/         # eBPF loading, event parsing, map helpers
-│   └── web/                  # Static web UI
-└── execute/                  # Generated runtime artifacts after deploy.sh local
+│   └── xdp_ring.bpf.c      # XDP/eBPF program
+└── client/
+    ├── ntc/main.go          # Go entrypoint
+    ├── httpapi/             # HTTP handlers and SSE endpoint
+    ├── internal/
+    │   ├── bpf/             # eBPF loading, event parsing, map helpers
+    │   ├── clock/           # Timestamp conversion
+    │   ├── config/          # YAML config loader
+    │   ├── mock/            # Synthetic packet generator (mock mode)
+    │   ├── model/           # Shared types
+    │   └── persist/         # JSON persistence for blacklist/whitelist
+    └── web/                 # Static web UI
 ```
 
-## Requirements
+## Configuration
 
-- Linux with eBPF/XDP support.
-- Root privileges or equivalent capabilities to attach XDP programs.
-- Go 1.25 or newer, matching `client/go.mod`.
-- `clang` with BPF target support.
-- Kernel headers and libbpf headers available to compile the eBPF program.
+Edit `config.yaml` before running:
 
-On Debian/Ubuntu-like systems, the native packages are usually similar to:
+```yaml
+server:
+  port: 8086
+  timezone: Europe/Warsaw  # IANA timezone, empty = UTC
+
+network:
+  interfaces:
+    - wlan0  # interface to attach XDP to
+
+persistence:
+  path: ./data/lists.json  # path to blacklist/whitelist JSON file
+```
+
+## Local Development (mock mode, no RPi required)
+
+Run with a synthetic packet generator — no eBPF or Linux required:
 
 ```sh
-sudo apt install clang llvm linux-headers-$(uname -r) libbpf-dev
+cd /path/to/NetworkTrafficControl
+go run ./client/ntc --mock
 ```
 
-## Build
+Open the web UI at:
 
-Build for the local Linux machine:
-
-```sh
-./deploy.sh local
 ```
-
-This compiles:
-
-- `eBPF/xdp_ring.bpf.o`
-- `client/ntc/ntc`
-
-Then copies the runtime files into `execute/`.
-
-Build and copy to the Raspberry Pi target configured in `deploy.sh`:
-
-```sh
-./deploy.sh rpi
-```
-
-Before using the Raspberry Pi target, update `DEST` in `deploy.sh` to match your username, host, and destination directory.
-
-## Run
-
-After building locally:
-
-```sh
-cd execute
-sudo ./ntc
-```
-
-The server listens on:
-
-```text
 http://localhost:8086
 ```
 
-Open that URL in a browser to use the web UI.
+To use a custom config:
 
-## Network Interface
-
-The Go entrypoint currently attaches XDP to `wlan0`:
-
-```go
-mgr, err := bpf.Load("xdp_ring.bpf.o", "wlan0")
+```sh
+go run ./client/ntc --mock --config /path/to/config.yaml
 ```
 
-If your target interface has a different name, update `client/ntc/main.go` before building. Common names include `eth0`, `wlan0`, `enp3s0`, and `wlp2s0`.
+## Raspberry Pi — First Time Setup
+
+**1. Configure connection:**
+
+```sh
+cp deploy.env.example deploy.env
+# Edit deploy.env with your RPi host, user, and directory
+```
+
+**2. Set up SSH key (no password prompts):**
+
+```sh
+ssh-keygen -t ed25519   # if you don't have a key yet
+ssh-copy-id rpi@rpi.local
+```
+
+**3. Install dependencies on RPi:**
+
+```sh
+./deploy.sh rpi-install-dependencies
+```
+
+This installs: `clang`, `llvm`, `linux-headers`, `libbpf-dev`, `libc6-dev`, and Go.
+
+**4. Build and deploy:**
+
+```sh
+./deploy.sh rpi-build
+```
+
+Copies sources to RPi and compiles eBPF + Go on the device.
+
+**5. Install systemd service:**
+
+```sh
+./deploy.sh rpi-install-service
+```
+
+The service starts automatically on boot and restarts on failure.
+
+## Raspberry Pi — Managing the Service
+
+```sh
+ssh rpi@rpi.local 'sudo systemctl start ntc'
+ssh rpi@rpi.local 'sudo systemctl stop ntc'
+ssh rpi@rpi.local 'sudo systemctl restart ntc'
+ssh rpi@rpi.local 'sudo journalctl -u ntc -f'   # live logs
+```
+
+Open the web UI at:
+
+```
+http://rpi.local:8086
+```
+
+## Subsequent Deploys
+
+After making changes, rebuild and redeploy:
+
+```sh
+./deploy.sh rpi-build
+ssh rpi@rpi.local 'sudo systemctl restart ntc'
+```
+
+## deploy.sh Targets
+
+| Target | Description |
+|---|---|
+| `local` | Build eBPF and Go locally, copy to `execute/` |
+| `rpi` | Cross-compile on macOS, copy artifacts to RPi |
+| `rpi-build` | Copy sources to RPi, build eBPF and Go on device |
+| `rpi-install-dependencies` | Install all build dependencies on RPi |
+| `rpi-install-service` | Install and enable systemd service on RPi |
 
 ## API
 
@@ -114,60 +173,48 @@ Example event payload:
 }
 ```
 
-Possible actions are:
+Possible actions:
 
-- `PASS`: packet passed normally.
-- `DROP`: packet matched the blacklist and was dropped.
-- `SKIP`: packet matched the whitelist and was passed.
-- `SSH`: packet used TCP port 22 and was bypassed.
+| Action | Description |
+|---|---|
+| `PASS` | Packet passed normally |
+| `DROP` | Packet matched blacklist and was dropped |
+| `SKIP` | Packet matched whitelist and was passed |
+| `SSH` | TCP port 22 — bypassed |
 
 ### Blacklist
 
-Add an IP to the blacklist:
-
 ```sh
+# Add
 curl -X POST http://localhost:8086/blacklist \
   -H 'Content-Type: application/json' \
   -d '{"ip":"192.168.0.50"}'
-```
 
-Remove an IP from the blacklist:
-
-```sh
+# Remove
 curl -X DELETE 'http://localhost:8086/blacklist?ip=192.168.0.50'
-```
 
-List blacklisted IPs:
-
-```sh
+# List
 curl http://localhost:8086/blacklist
 ```
 
 ### Whitelist
 
-Add an IP to the whitelist:
-
 ```sh
+# Add
 curl -X POST http://localhost:8086/whitelist \
   -H 'Content-Type: application/json' \
   -d '{"ip":"192.168.0.20"}'
-```
 
-Remove an IP from the whitelist:
-
-```sh
+# Remove
 curl -X DELETE 'http://localhost:8086/whitelist?ip=192.168.0.20'
-```
 
-List whitelisted IPs:
-
-```sh
+# List
 curl http://localhost:8086/whitelist
 ```
 
 ## Notes
 
-- List changes are stored in eBPF maps and are not persisted after the process exits.
-- The blacklist and whitelist maps support IPv4 and IPv6 addresses.
-- The eBPF maps currently allow up to 1024 entries per list.
-- The static web UI is served from `./web`, so run `ntc` from the generated `execute/` directory unless you adjust the file paths.
+- Blacklist and whitelist are persisted to JSON and restored on restart.
+- Both lists support IPv4 and IPv6 addresses.
+- eBPF maps allow up to 1024 entries per list.
+- The server must be run from the directory containing `web/` and `xdp_ring.bpf.o` (handled automatically by `rpi-install-service`).

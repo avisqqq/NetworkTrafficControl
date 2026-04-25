@@ -68,10 +68,10 @@ function renderList(data) {
 
 	for (const ip of data) {
 		const li = document.createElement('li');
-		li.textContent = ip;
+		li.textContent = ip.ip;
 
 		li.onclick = () => {
-			ipInputEl.value = ip;
+			ipInputEl.value = ip.ip;
 		};
 
 		listEl.appendChild(li);
@@ -151,7 +151,7 @@ filterEl.addEventListener('input', () => {
 	countEl.textContent = '0';
 })
 
-const es = new EventSource('http://192.168.0.143:8086/events');
+const es = new EventSource(`${window.location.origin}/events`);
 es.onopen = () => setStatus(true)
 es.onerror = () => setStatus(false)
 es.onmessage = (msg) => {
