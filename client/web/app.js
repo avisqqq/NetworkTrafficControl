@@ -151,7 +151,7 @@ filterEl.addEventListener('input', () => {
 	countEl.textContent = '0';
 })
 
-const es = new EventSource('http://192.168.0.143:8086/events');
+const es = new EventSource('/events');
 es.onopen = () => setStatus(true)
 es.onerror = () => setStatus(false)
 es.onmessage = (msg) => {

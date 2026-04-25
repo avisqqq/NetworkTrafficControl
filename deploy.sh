@@ -44,11 +44,12 @@ fi
 echo "[*] Copying artifacts..."
 
 if [ "$TARGET" = "rpi" ]; then
-    scp -r client/web eBPF/xdp_ring.bpf.o client/ntc/ntc "$DEST"
+    scp -r client/web eBPF/xdp_ring.bpf.o client/ntc/ntc config.yaml "$DEST"
 else
     cp -r client/web "$DEST"
     cp eBPF/xdp_ring.bpf.o "$DEST"
     cp client/ntc/ntc "$DEST"
+    cp config.yaml "$DEST"
 fi
 
 echo "[✓] Done"
