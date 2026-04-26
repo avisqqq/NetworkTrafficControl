@@ -131,8 +131,8 @@ EOF
 
     echo "[*] Starting monitoring stack on RPi..."
     ssh -t "${RPI_USER}@${RPI_HOST}" "
+        docker rm -f ntc-victoria ntc-grafana 2>/dev/null || true
         cd ${RPI_DIR}/monitoring
-        docker compose down --remove-orphans 2>/dev/null || true
         docker compose pull
         docker compose up -d
         docker compose ps
