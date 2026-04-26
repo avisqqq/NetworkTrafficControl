@@ -158,7 +158,7 @@ if [ "$TARGET" = "rpi-build" ]; then
 
     echo "[*] Building eBPF on RPi..."
     ssh "${RPI_USER}@${RPI_HOST}" "
-        cd ${RPI_DIR}/src/internal/bpf &&
+        cd ${RPI_DIR}/src/internal/bpf/c &&
         clang -O2 -g -target bpf -D__TARGET_ARCH_arm64 \
           -I/usr/include/aarch64-linux-gnu \
           -c tc_filter.bpf.c -o tc_filter.bpf.o
@@ -186,10 +186,10 @@ echo "[*] Building frontend (Svelte)..."
 cd web && npm run build && cd ..
 
 echo "[*] Compiling eBPF..."
-cd internal/bpf
+cd internal/bpf/c
 clang -O2 -g -target bpf -D__TARGET_ARCH_${BPF_ARCH} \
   -c tc_filter.bpf.c -o tc_filter.bpf.o
-cd ../..
+cd ../../..
 
 echo "[*] Compiling Go..."
 GOOS=linux GOARCH=$GOARCH go build -o ntc_bin ./cmd/ntc
