@@ -18,6 +18,7 @@ type Window struct {
 	b          [buckets]bucket
 	cursor     int
 	lastRotate time.Time
+	lastReset  time.Time // tracks when unique sets were last cleared
 
 	UniqueDstPorts map[uint16]struct{}
 	UniqueSrcIPs   map[[16]byte]struct{}
@@ -28,6 +29,7 @@ type Window struct {
 func newWindow(now time.Time) *Window {
 	return &Window{
 		lastRotate:     now,
+		lastReset:      now,
 		UniqueDstPorts: make(map[uint16]struct{}),
 		UniqueSrcIPs:   make(map[[16]byte]struct{}),
 	}
@@ -45,13 +47,18 @@ func (w *Window) rotate(now time.Time) {
 		w.cursor = (w.cursor + 1) % buckets
 		w.b[w.cursor] = bucket{}
 	}
-	if elapsed >= buckets {
-		w.SynCount = 0
-		w.AckCount = 0
+	w.lastRotate = now
+
+	// Reset unique sets every full window cycle (60s) regardless of traffic.
+	// Without this, ports from a port scan would linger as long as the IP
+	// sends any traffic at all.
+	if now.Sub(w.lastReset) >= buckets*time.Second {
 		w.UniqueDstPorts = make(map[uint16]struct{})
 		w.UniqueSrcIPs = make(map[[16]byte]struct{})
+		w.SynCount = 0
+		w.AckCount = 0
+		w.lastReset = now
 	}
-	w.lastRotate = now
 }
 
 func (w *Window) Add(pktSize uint16, dstPort uint16, srcIP [16]byte, tcpFlags uint8, now time.Time) {
