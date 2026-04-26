@@ -132,6 +132,7 @@ EOF
     echo "[*] Starting monitoring stack on RPi..."
     ssh -t "${RPI_USER}@${RPI_HOST}" "
         cd ${RPI_DIR}/monitoring
+        docker compose down --remove-orphans 2>/dev/null || true
         docker compose pull
         docker compose up -d
         docker compose ps
