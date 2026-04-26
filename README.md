@@ -47,33 +47,29 @@ NTC is a Linux TC eBPF network traffic monitor and controller designed for Raspb
 
 ```
 .
-├── deploy.sh                    # Build and deploy script
+├── cmd/ntc/main.go              # Go entrypoint
+├── internal/
+│   ├── api/                     # HTTP handlers, SSE, /metrics
+│   ├── bpf/                     # eBPF loader, event parsing, map helpers
+│   │   └── c/
+│   │       └── tc_filter.bpf.c  # TC eBPF program (ingress + egress)
+│   ├── clock/                   # Timestamp conversion
+│   ├── config/                  # YAML config loader
+│   ├── flow/                    # Flow tracker (5-tuple aggregation)
+│   ├── mock/                    # Synthetic packet generator
+│   ├── model/                   # Shared types (Event, OutEvent, IPKey…)
+│   ├── persist/                 # JSON persistence for blacklist/whitelist
+│   └── stats/                   # Per-IP sliding window + global counters
+├── web/                         # Svelte source (npm run build → dist/)
+├── dist/                        # Built frontend — served by Go (gitignored)
+├── monitoring/
+│   ├── docker-compose.yml       # VictoriaMetrics + Grafana stack
+│   ├── victoria/scrape.yaml     # Prometheus scrape config
+│   └── grafana/provisioning/    # Auto-provisioned datasource + dashboards
+├── scripts/deploy.sh            # Build and deploy script
 ├── deploy.env                   # RPi connection config (gitignored)
 ├── deploy.env.example           # Template for deploy.env
-├── config.yaml                  # Runtime config
-├── docker-compose.yml           # VictoriaMetrics + Grafana stack
-├── victoria/
-│   └── scrape.yaml              # Prometheus scrape config (dev: host.docker.internal)
-├── grafana/
-│   └── provisioning/
-│       ├── datasources/         # Auto-provisioned VictoriaMetrics datasource
-│       └── dashboards/          # NTC Overview, Top Talkers, Security
-├── eBPF/
-│   └── tc_filter.bpf.c          # TC eBPF program (ingress + egress)
-└── client/
-    ├── ntc/main.go              # Go entrypoint
-    ├── httpapi/                 # HTTP handlers, SSE, /metrics
-    ├── internal/
-    │   ├── bpf/                 # eBPF loading, event parsing, map helpers
-    │   ├── clock/               # Timestamp conversion
-    │   ├── config/              # YAML config loader
-    │   ├── flow/                # Flow tracker (5-tuple aggregation)
-    │   ├── mock/                # Synthetic packet generator
-    │   ├── model/               # Shared types (Event, OutEvent, IPKey…)
-    │   ├── persist/             # JSON persistence for blacklist/whitelist
-    │   └── stats/               # Per-IP sliding window + global counters
-    ├── web/                     # Built Svelte app (served by Go, do not edit)
-    └── web-svelte/              # Svelte source (npm run build → web/)
+└── config.yaml                  # Runtime config
 ```
 
 ## Configuration
@@ -97,18 +93,18 @@ Run with synthetic traffic generator — no eBPF or Linux required:
 
 ```sh
 # Terminal 1 — Go backend
-cd client && go run ./ntc --mock
+go run ./cmd/ntc --mock
 
-# Terminal 2 — Svelte dev server with proxy (optional, for frontend changes)
-cd client/web-svelte && npm run dev
+# Terminal 2 — Svelte dev server with HMR (optional, for frontend changes)
+cd web && npm run dev
 ```
 
-Open `http://localhost:8086` (served by Go) or `http://localhost:5173` (Vite dev server with HMR).
+Open `http://localhost:8086` (served by Go) or `http://localhost:5173` (Vite dev server).
 
 ### Monitoring stack (local)
 
 ```sh
-docker compose up -d
+docker compose -f monitoring/docker-compose.yml up -d
 ```
 
 - Grafana: `http://localhost:3000` (admin / admin)
@@ -119,9 +115,7 @@ Scrape target is pre-configured to `host.docker.internal:8086`.
 ### Rebuild frontend
 
 ```sh
-cd client/web-svelte && npm run build
-# or via deploy.sh:
-./deploy.sh local
+cd web && npm run build
 ```
 
 ## Raspberry Pi — First Time Setup
@@ -143,36 +137,60 @@ ssh-copy-id rpi@rpi.local
 **3. Install dependencies (eBPF toolchain + Go + Docker):**
 
 ```sh
-./deploy.sh rpi-install-dependencies
+./scripts/deploy.sh rpi-install-dependencies
 ```
 
 **4. Build and deploy NTC:**
 
 ```sh
-./deploy.sh rpi-build
+./scripts/deploy.sh rpi-build
 ```
 
-**5. Install systemd service:**
+**5. Install systemd service (auto-start on boot):**
 
 ```sh
-./deploy.sh rpi-install-service
+./scripts/deploy.sh rpi-install-service
 ```
 
 **6. Install monitoring stack (VictoriaMetrics + Grafana):**
 
 ```sh
-./deploy.sh rpi-install-stack
+./scripts/deploy.sh rpi-install-stack
 ```
 
+URLs after deployment:
 - NTC web UI: `http://rpi.local:8086`
 - Grafana: `http://rpi.local:3000` (admin / admin)
 - VictoriaMetrics: `http://rpi.local:8428`
 
-## Subsequent Deploys
+## Raspberry Pi — Managing the Service
 
 ```sh
-./deploy.sh rpi-build
+# Status
+ssh rpi@rpi.local 'sudo systemctl status ntc'
+
+# Start / stop / restart
+ssh rpi@rpi.local 'sudo systemctl start ntc'
+ssh rpi@rpi.local 'sudo systemctl stop ntc'
 ssh rpi@rpi.local 'sudo systemctl restart ntc'
+
+# Live logs
+ssh rpi@rpi.local 'sudo journalctl -u ntc -f'
+```
+
+## Subsequent Deploys
+
+After making code changes:
+
+```sh
+./scripts/deploy.sh rpi-build
+ssh rpi@rpi.local 'sudo systemctl restart ntc'
+```
+
+After changing monitoring config (Grafana dashboards, scrape config):
+
+```sh
+./scripts/deploy.sh rpi-install-stack
 ```
 
 ## deploy.sh Targets
@@ -218,8 +236,6 @@ curl http://localhost:8086/events
 ```sh
 curl http://localhost:8086/metrics
 ```
-
-Key metrics exposed:
 
 | Metric | Type | Description |
 |---|---|---|
