@@ -4,42 +4,42 @@ import (
 	"client/internal/model"
 )
 
-func (m *Manager) AddToBlackList(ip string) (model.Ip_Key, error) {
-	key, err := AddIpToList(m.Blacklist, ip)
+func (m *Manager) AddToBlackList(ip string) (model.IPKey, error) {
+	key, err := addIPToList(m.blacklist, ip)
 	if err == nil {
 		m.save()
 	}
 	return key, err
 }
 
-func (m *Manager) RemoveFromBlackList(ip string) (model.Ip_Key, error) {
-	key, err := RemoveIpFrom(m.Blacklist, ip)
+func (m *Manager) RemoveFromBlackList(ip string) (model.IPKey, error) {
+	key, err := removeIPFrom(m.blacklist, ip)
 	if err == nil {
 		m.save()
 	}
 	return key, err
 }
 
-func (m *Manager) GetFromBlackList() ([]model.IpEntry, error) {
-	return GetIpFromList(m.Blacklist)
+func (m *Manager) GetFromBlackList() ([]model.IPEntry, error) {
+	return getIPsFromList(m.blacklist)
 }
 
-func (m *Manager) AddToWhiteList(ip string) (model.Ip_Key, error) {
-	key, err := AddIpToList(m.Whitelist, ip)
+func (m *Manager) AddToWhiteList(ip string) (model.IPKey, error) {
+	key, err := addIPToList(m.whitelist, ip)
 	if err == nil {
 		m.save()
 	}
 	return key, err
 }
 
-func (m *Manager) RemoveFromWhiteList(ip string) (model.Ip_Key, error) {
-	key, err := RemoveIpFrom(m.Whitelist, ip)
+func (m *Manager) RemoveFromWhiteList(ip string) (model.IPKey, error) {
+	key, err := removeIPFrom(m.whitelist, ip)
 	if err == nil {
 		m.save()
 	}
 	return key, err
 }
 
-func (m *Manager) GetFromWhiteList() ([]model.IpEntry, error) {
-	return GetIpFromList(m.Whitelist)
+func (m *Manager) GetFromWhiteList() ([]model.IPEntry, error) {
+	return getIPsFromList(m.whitelist)
 }

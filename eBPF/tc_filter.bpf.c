@@ -4,6 +4,7 @@
 #include <linux/ip.h>
 #include <linux/ipv6.h>
 #include <linux/tcp.h>
+#include <linux/udp.h>
 #include <linux/in.h>
 #include <linux/pkt_cls.h>
 #include <bpf/bpf_helpers.h>
@@ -27,11 +28,16 @@ struct event {
     __u8 src[16];
     __u8 dst[16];
 
+    __u16 src_port;
+    __u16 dst_port;
+    __u16 pkt_size;
+
     __u8 proto;
     __u8 action;
     __u8 ip_version;
     __u8 direction;
-    __u8 pad[4];
+    __u8 tcp_flags;
+    __u8 pad[1];
 };
 
 enum event_action {
@@ -117,7 +123,11 @@ static __always_inline void emit_event(
         __u8 ip_version,
         __u8 proto,
         __u8 action,
-        __u8 direction) {
+        __u8 direction,
+        __u16 src_port,
+        __u16 dst_port,
+        __u16 pkt_size,
+        __u8 tcp_flags) {
     struct event *e = bpf_ringbuf_reserve(&events, sizeof(*e), 0);
     if (!e)
         return;
@@ -136,10 +146,14 @@ static __always_inline void emit_event(
         __builtin_memcpy(e->dst, dst, 16);
     }
 
-    e->proto = proto;
-    e->action = action;
+    e->proto      = proto;
+    e->action     = action;
     e->ip_version = ip_version;
-    e->direction = direction;
+    e->direction  = direction;
+    e->src_port   = src_port;
+    e->dst_port   = dst_port;
+    e->pkt_size   = pkt_size;
+    e->tcp_flags  = tcp_flags;
 
     bpf_ringbuf_submit(e, 0);
 }
@@ -160,40 +174,55 @@ static __always_inline int handle_ipv4(
 
     __u32 src = ip->saddr;
     __u32 dst = ip->daddr;
+    __u16 pkt_size = bpf_ntohs(ip->tot_len);
 
-    struct ip_key src_key;
-    struct ip_key dst_key;
-
-    fill_ipv4_key(&src_key, src);
-    fill_ipv4_key(&dst_key, dst);
+    __u16 src_port = 0, dst_port = 0;
+    __u8  tcp_flags = 0;
 
     if (ip->protocol == IPPROTO_TCP) {
         struct tcphdr *tcp = (void *)ip + ip_hdr_len;
         if ((void *)(tcp + 1) > data_end)
             return TC_ACT_OK;
-
-        if (bpf_ntohs(tcp->dest) == 22 || bpf_ntohs(tcp->source) == 22) {
-            emit_event((const __u8 *)&src, (const __u8 *)&dst, 4, ip->protocol, ACT_SSH_BYPASS, direction);
+        src_port  = bpf_ntohs(tcp->source);
+        dst_port  = bpf_ntohs(tcp->dest);
+        tcp_flags = ((__u8 *)tcp)[13]; // flags byte: CWR|ECE|URG|ACK|PSH|RST|SYN|FIN
+    } else if (ip->protocol == IPPROTO_UDP) {
+        struct udphdr *udp = (void *)ip + ip_hdr_len;
+        if ((void *)(udp + 1) > data_end)
             return TC_ACT_OK;
-        }
+        src_port = bpf_ntohs(udp->source);
+        dst_port = bpf_ntohs(udp->dest);
+    }
+
+    struct ip_key src_key, dst_key;
+    fill_ipv4_key(&src_key, src);
+    fill_ipv4_key(&dst_key, dst);
+
+    if (ip->protocol == IPPROTO_TCP && (src_port == 22 || dst_port == 22)) {
+        emit_event((const __u8 *)&src, (const __u8 *)&dst, 4, ip->protocol,
+                   ACT_SSH_BYPASS, direction, src_port, dst_port, pkt_size, tcp_flags);
+        return TC_ACT_OK;
     }
 
     if (bpf_map_lookup_elem(&blacklist, &src_key) ||
         bpf_map_lookup_elem(&blacklist, &dst_key)) {
         inc_stat(STAT_DROP);
-        emit_event((const __u8 *)&src, (const __u8 *)&dst, 4, ip->protocol, ACT_DROP, direction);
+        emit_event((const __u8 *)&src, (const __u8 *)&dst, 4, ip->protocol,
+                   ACT_DROP, direction, src_port, dst_port, pkt_size, tcp_flags);
         return TC_ACT_SHOT;
     }
 
     if (bpf_map_lookup_elem(&whitelist, &src_key) ||
         bpf_map_lookup_elem(&whitelist, &dst_key)) {
         inc_stat(STAT_SKIP);
-        emit_event((const __u8 *)&src, (const __u8 *)&dst, 4, ip->protocol, ACT_SKIP, direction);
+        emit_event((const __u8 *)&src, (const __u8 *)&dst, 4, ip->protocol,
+                   ACT_SKIP, direction, src_port, dst_port, pkt_size, tcp_flags);
         return TC_ACT_OK;
     }
 
     inc_stat(STAT_PASS);
-    emit_event((const __u8 *)&src, (const __u8 *)&dst, 4, ip->protocol, ACT_PASS, direction);
+    emit_event((const __u8 *)&src, (const __u8 *)&dst, 4, ip->protocol,
+               ACT_PASS, direction, src_port, dst_port, pkt_size, tcp_flags);
     return TC_ACT_OK;
 }
 
@@ -205,39 +234,54 @@ static __always_inline int handle_ipv6(
     if ((void *)(ipv6 + 1) > data_end)
         return TC_ACT_OK;
 
-    struct ip_key src_key;
-    struct ip_key dst_key;
-
-    fill_ipv6_key(&src_key, &ipv6->saddr);
-    fill_ipv6_key(&dst_key, &ipv6->daddr);
+    __u16 pkt_size  = bpf_ntohs(ipv6->payload_len) + sizeof(*ipv6);
+    __u16 src_port  = 0, dst_port = 0;
+    __u8  tcp_flags = 0;
 
     if (ipv6->nexthdr == IPPROTO_TCP) {
         struct tcphdr *tcp = (void *)(ipv6 + 1);
         if ((void *)(tcp + 1) > data_end)
             return TC_ACT_OK;
-
-        if (bpf_ntohs(tcp->dest) == 22 || bpf_ntohs(tcp->source) == 22) {
-            emit_event((const __u8 *)&ipv6->saddr, (const __u8 *)&ipv6->daddr, 6, ipv6->nexthdr, ACT_SSH_BYPASS, direction);
+        src_port  = bpf_ntohs(tcp->source);
+        dst_port  = bpf_ntohs(tcp->dest);
+        tcp_flags = ((__u8 *)tcp)[13];
+    } else if (ipv6->nexthdr == IPPROTO_UDP) {
+        struct udphdr *udp = (void *)(ipv6 + 1);
+        if ((void *)(udp + 1) > data_end)
             return TC_ACT_OK;
-        }
+        src_port = bpf_ntohs(udp->source);
+        dst_port = bpf_ntohs(udp->dest);
+    }
+
+    struct ip_key src_key, dst_key;
+    fill_ipv6_key(&src_key, &ipv6->saddr);
+    fill_ipv6_key(&dst_key, &ipv6->daddr);
+
+    if (ipv6->nexthdr == IPPROTO_TCP && (src_port == 22 || dst_port == 22)) {
+        emit_event((const __u8 *)&ipv6->saddr, (const __u8 *)&ipv6->daddr, 6, ipv6->nexthdr,
+                   ACT_SSH_BYPASS, direction, src_port, dst_port, pkt_size, tcp_flags);
+        return TC_ACT_OK;
     }
 
     if (bpf_map_lookup_elem(&blacklist, &src_key) ||
         bpf_map_lookup_elem(&blacklist, &dst_key)) {
         inc_stat(STAT_DROP);
-        emit_event((const __u8 *)&ipv6->saddr, (const __u8 *)&ipv6->daddr, 6, ipv6->nexthdr, ACT_DROP, direction);
+        emit_event((const __u8 *)&ipv6->saddr, (const __u8 *)&ipv6->daddr, 6, ipv6->nexthdr,
+                   ACT_DROP, direction, src_port, dst_port, pkt_size, tcp_flags);
         return TC_ACT_SHOT;
     }
 
     if (bpf_map_lookup_elem(&whitelist, &src_key) ||
         bpf_map_lookup_elem(&whitelist, &dst_key)) {
         inc_stat(STAT_SKIP);
-        emit_event((const __u8 *)&ipv6->saddr, (const __u8 *)&ipv6->daddr, 6, ipv6->nexthdr, ACT_SKIP, direction);
+        emit_event((const __u8 *)&ipv6->saddr, (const __u8 *)&ipv6->daddr, 6, ipv6->nexthdr,
+                   ACT_SKIP, direction, src_port, dst_port, pkt_size, tcp_flags);
         return TC_ACT_OK;
     }
 
     inc_stat(STAT_PASS);
-    emit_event((const __u8 *)&ipv6->saddr, (const __u8 *)&ipv6->daddr, 6, ipv6->nexthdr, ACT_PASS, direction);
+    emit_event((const __u8 *)&ipv6->saddr, (const __u8 *)&ipv6->daddr, 6, ipv6->nexthdr,
+               ACT_PASS, direction, src_port, dst_port, pkt_size, tcp_flags);
     return TC_ACT_OK;
 }
 

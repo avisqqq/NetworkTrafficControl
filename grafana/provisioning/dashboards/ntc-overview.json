@@ -1,0 +1,158 @@
+{
+  "title": "NTC — Overview",
+  "uid": "ntc-overview",
+  "schemaVersion": 38,
+  "refresh": "10s",
+  "tags": ["ntc"],
+  "time": { "from": "now-30m", "to": "now" },
+  "timepicker": {},
+  "panels": [
+
+    { "id": 1, "type": "row", "title": "Traffic Rate", "gridPos": { "x": 0, "y": 0, "w": 24, "h": 1 }, "collapsed": false },
+
+    {
+      "id": 2, "title": "Packets / s", "type": "stat",
+      "gridPos": { "x": 0, "y": 1, "w": 4, "h": 4 },
+      "targets": [{ "expr": "ntc_packets_per_second", "legendFormat": "" }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "area", "textMode": "auto" },
+      "fieldConfig": { "defaults": { "unit": "pps", "color": { "mode": "thresholds" },
+        "thresholds": { "mode": "absolute", "steps": [
+          { "color": "green", "value": null },
+          { "color": "yellow", "value": 1000 },
+          { "color": "red", "value": 10000 }
+        ]}}}
+    },
+    {
+      "id": 3, "title": "Throughput", "type": "stat",
+      "gridPos": { "x": 4, "y": 1, "w": 4, "h": 4 },
+      "targets": [{ "expr": "ntc_bytes_per_second", "legendFormat": "" }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "area" },
+      "fieldConfig": { "defaults": { "unit": "Bps", "color": { "mode": "thresholds" },
+        "thresholds": { "mode": "absolute", "steps": [
+          { "color": "green", "value": null },
+          { "color": "yellow", "value": 10000000 },
+          { "color": "red", "value": 100000000 }
+        ]}}}
+    },
+    {
+      "id": 4, "title": "Active IPs", "type": "stat",
+      "gridPos": { "x": 8, "y": 1, "w": 4, "h": 4 },
+      "targets": [{ "expr": "ntc_active_ips", "legendFormat": "" }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none" },
+      "fieldConfig": { "defaults": { "color": { "fixedColor": "blue", "mode": "fixed" }}}
+    },
+    {
+      "id": 5, "title": "Active Flows", "type": "stat",
+      "gridPos": { "x": 12, "y": 1, "w": 4, "h": 4 },
+      "targets": [{ "expr": "ntc_active_flows", "legendFormat": "" }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none" },
+      "fieldConfig": { "defaults": { "color": { "fixedColor": "purple", "mode": "fixed" }}}
+    },
+    {
+      "id": 6, "title": "Packets Dropped (total)", "type": "stat",
+      "gridPos": { "x": 16, "y": 1, "w": 4, "h": 4 },
+      "targets": [{ "expr": "ntc_action_packets_total{action=\"drop\"}", "legendFormat": "" }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background", "graphMode": "none" },
+      "fieldConfig": { "defaults": { "color": { "mode": "thresholds" },
+        "thresholds": { "mode": "absolute", "steps": [
+          { "color": "green", "value": null },
+          { "color": "red", "value": 1 }
+        ]}}}
+    },
+    {
+      "id": 7, "title": "Drop Rate %", "type": "stat",
+      "gridPos": { "x": 20, "y": 1, "w": 4, "h": 4 },
+      "targets": [{ "expr": "100 * ntc_action_packets_total{action=\"drop\"} / clamp_min(sum(ntc_action_packets_total{action=~\"pass|drop\"}), 1)", "legendFormat": "" }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "background" },
+      "fieldConfig": { "defaults": { "unit": "percent", "decimals": 2, "color": { "mode": "thresholds" },
+        "thresholds": { "mode": "absolute", "steps": [
+          { "color": "green", "value": null },
+          { "color": "yellow", "value": 1 },
+          { "color": "red", "value": 10 }
+        ]}}}
+    },
+
+    {
+      "id": 10, "title": "Packets/s over time", "type": "timeseries",
+      "gridPos": { "x": 0, "y": 5, "w": 16, "h": 8 },
+      "targets": [{ "expr": "ntc_packets_per_second", "legendFormat": "pkt/s" }],
+      "fieldConfig": { "defaults": { "unit": "pps", "custom": { "lineWidth": 2, "fillOpacity": 15, "gradientMode": "opacity" },
+        "color": { "fixedColor": "blue", "mode": "fixed" }}}
+    },
+    {
+      "id": 11, "title": "Throughput over time", "type": "timeseries",
+      "gridPos": { "x": 16, "y": 5, "w": 8, "h": 8 },
+      "targets": [{ "expr": "ntc_bytes_per_second", "legendFormat": "bytes/s" }],
+      "fieldConfig": { "defaults": { "unit": "Bps", "custom": { "lineWidth": 2, "fillOpacity": 15, "gradientMode": "opacity" },
+        "color": { "fixedColor": "green", "mode": "fixed" }}}
+    },
+
+    { "id": 20, "type": "row", "title": "Protocol Breakdown", "gridPos": { "x": 0, "y": 13, "w": 24, "h": 1 }, "collapsed": false },
+
+    {
+      "id": 21, "title": "Packets by Protocol", "type": "piechart",
+      "gridPos": { "x": 0, "y": 14, "w": 6, "h": 8 },
+      "targets": [
+        { "expr": "ntc_packets_total{proto=\"tcp\"}", "legendFormat": "TCP" },
+        { "expr": "ntc_packets_total{proto=\"udp\"}", "legendFormat": "UDP" },
+        { "expr": "ntc_packets_total{proto=\"icmp\"}", "legendFormat": "ICMP" },
+        { "expr": "ntc_packets_total{proto=\"other\"}", "legendFormat": "Other" }
+      ],
+      "options": { "pieType": "donut", "displayLabels": ["name", "percent"] },
+      "fieldConfig": { "defaults": { "unit": "short" }}
+    },
+    {
+      "id": 22, "title": "Bytes by Protocol", "type": "piechart",
+      "gridPos": { "x": 6, "y": 14, "w": 6, "h": 8 },
+      "targets": [
+        { "expr": "ntc_bytes_total{proto=\"tcp\"}", "legendFormat": "TCP" },
+        { "expr": "ntc_bytes_total{proto=\"udp\"}", "legendFormat": "UDP" },
+        { "expr": "ntc_bytes_total{proto=\"icmp\"}", "legendFormat": "ICMP" },
+        { "expr": "ntc_bytes_total{proto=\"other\"}", "legendFormat": "Other" }
+      ],
+      "options": { "pieType": "donut", "displayLabels": ["name", "percent"] },
+      "fieldConfig": { "defaults": { "unit": "bytes" }}
+    },
+    {
+      "id": 23, "title": "Ingress vs Egress — Packets", "type": "piechart",
+      "gridPos": { "x": 12, "y": 14, "w": 6, "h": 8 },
+      "targets": [
+        { "expr": "ntc_direction_packets_total{direction=\"ingress\"}", "legendFormat": "Ingress" },
+        { "expr": "ntc_direction_packets_total{direction=\"egress\"}", "legendFormat": "Egress" }
+      ],
+      "options": { "pieType": "donut", "displayLabels": ["name", "percent"] }
+    },
+    {
+      "id": 24, "title": "Actions Distribution", "type": "piechart",
+      "gridPos": { "x": 18, "y": 14, "w": 6, "h": 8 },
+      "targets": [
+        { "expr": "ntc_action_packets_total{action=\"pass\"}", "legendFormat": "Pass" },
+        { "expr": "ntc_action_packets_total{action=\"drop\"}", "legendFormat": "Drop" },
+        { "expr": "ntc_action_packets_total{action=\"skip\"}", "legendFormat": "Skip (whitelist)" },
+        { "expr": "ntc_action_packets_total{action=\"ssh\"}", "legendFormat": "SSH bypass" }
+      ],
+      "options": { "pieType": "donut", "displayLabels": ["name", "percent"] }
+    },
+
+    { "id": 30, "type": "row", "title": "Direction Detail", "gridPos": { "x": 0, "y": 22, "w": 24, "h": 1 }, "collapsed": false },
+
+    {
+      "id": 31, "title": "Ingress vs Egress — Bytes/s", "type": "timeseries",
+      "gridPos": { "x": 0, "y": 23, "w": 12, "h": 7 },
+      "targets": [
+        { "expr": "rate(ntc_direction_bytes_total{direction=\"ingress\"}[1m]) * 60", "legendFormat": "Ingress" },
+        { "expr": "rate(ntc_direction_bytes_total{direction=\"egress\"}[1m]) * 60", "legendFormat": "Egress" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "Bps", "custom": { "lineWidth": 2, "fillOpacity": 10 }}}
+    },
+    {
+      "id": 32, "title": "Dropped Bytes/s", "type": "timeseries",
+      "gridPos": { "x": 12, "y": 23, "w": 12, "h": 7 },
+      "targets": [
+        { "expr": "rate(ntc_action_bytes_total{action=\"drop\"}[1m]) * 60", "legendFormat": "Dropped bytes/s" }
+      ],
+      "fieldConfig": { "defaults": { "unit": "Bps", "color": { "fixedColor": "red", "mode": "fixed" }, "custom": { "lineWidth": 2, "fillOpacity": 20 }}}
+    }
+
+  ]
+}

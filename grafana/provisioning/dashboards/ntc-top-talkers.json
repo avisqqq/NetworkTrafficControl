@@ -1,0 +1,76 @@
+{
+  "title": "NTC — Top Talkers",
+  "uid": "ntc-top-talkers",
+  "schemaVersion": 38,
+  "refresh": "10s",
+  "tags": ["ntc"],
+  "time": { "from": "now-30m", "to": "now" },
+  "panels": [
+
+    { "id": 1, "type": "row", "title": "Current Top 10", "gridPos": { "x": 0, "y": 0, "w": 24, "h": 1 } },
+
+    {
+      "id": 2, "title": "Top Talkers — Packets/s (live)", "type": "bargauge",
+      "gridPos": { "x": 0, "y": 1, "w": 12, "h": 10 },
+      "targets": [{ "expr": "topk(10, ntc_ip_packets_per_second)", "legendFormat": "{{ip}}", "instant": true }],
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "orientation": "horizontal",
+        "displayMode": "gradient",
+        "valueMode": "color"
+      },
+      "fieldConfig": { "defaults": { "unit": "pps", "color": { "mode": "continuous-BlPu" },
+        "thresholds": { "mode": "absolute", "steps": [
+          { "color": "green", "value": null },
+          { "color": "yellow", "value": 100 },
+          { "color": "red", "value": 1000 }
+        ]}}}
+    },
+    {
+      "id": 3, "title": "Top Talkers — Bytes/s (live)", "type": "bargauge",
+      "gridPos": { "x": 12, "y": 1, "w": 12, "h": 10 },
+      "targets": [{ "expr": "topk(10, ntc_ip_bytes_per_second)", "legendFormat": "{{ip}}", "instant": true }],
+      "options": {
+        "reduceOptions": { "calcs": ["lastNotNull"] },
+        "orientation": "horizontal",
+        "displayMode": "gradient"
+      },
+      "fieldConfig": { "defaults": { "unit": "Bps", "color": { "mode": "continuous-GrYlRd" }}}
+    },
+
+    { "id": 10, "type": "row", "title": "Time Series", "gridPos": { "x": 0, "y": 11, "w": 24, "h": 1 } },
+
+    {
+      "id": 11, "title": "Packets/s per IP — over time", "type": "timeseries",
+      "gridPos": { "x": 0, "y": 12, "w": 24, "h": 9 },
+      "targets": [{ "expr": "topk(10, ntc_ip_packets_per_second)", "legendFormat": "{{ip}}" }],
+      "options": { "legend": { "displayMode": "table", "placement": "right", "calcs": ["lastNotNull", "max"] } },
+      "fieldConfig": { "defaults": { "unit": "pps", "custom": { "lineWidth": 1, "fillOpacity": 5 }}}
+    },
+    {
+      "id": 12, "title": "Bytes/s per IP — over time", "type": "timeseries",
+      "gridPos": { "x": 0, "y": 21, "w": 24, "h": 9 },
+      "targets": [{ "expr": "topk(10, ntc_ip_bytes_per_second)", "legendFormat": "{{ip}}" }],
+      "options": { "legend": { "displayMode": "table", "placement": "right", "calcs": ["lastNotNull", "max"] } },
+      "fieldConfig": { "defaults": { "unit": "Bps", "custom": { "lineWidth": 1, "fillOpacity": 5 }}}
+    },
+
+    { "id": 20, "type": "row", "title": "Total Bytes Sent", "gridPos": { "x": 0, "y": 30, "w": 24, "h": 1 } },
+
+    {
+      "id": 21, "title": "Total Bytes — all time", "type": "stat",
+      "gridPos": { "x": 0, "y": 31, "w": 6, "h": 4 },
+      "targets": [{ "expr": "sum(ntc_bytes_total)", "legendFormat": "Total" }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value" },
+      "fieldConfig": { "defaults": { "unit": "bytes", "color": { "fixedColor": "blue", "mode": "fixed" }}}
+    },
+    {
+      "id": 22, "title": "Total Packets — all time", "type": "stat",
+      "gridPos": { "x": 6, "y": 31, "w": 6, "h": 4 },
+      "targets": [{ "expr": "sum(ntc_packets_total)", "legendFormat": "Total" }],
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"] }, "colorMode": "value" },
+      "fieldConfig": { "defaults": { "color": { "fixedColor": "green", "mode": "fixed" }}}
+    }
+
+  ]
+}

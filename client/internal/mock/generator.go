@@ -29,10 +29,15 @@ var ipv6Pool = []string{
 // protos: TCP=6, UDP=17, ICMP=1
 var protos = []uint8{6, 6, 6, 17, 17, 1}
 
+type listChecker interface {
+	IsBlacklisted(ip string) bool
+	IsWhitelisted(ip string) bool
+}
+
 // GenerateEvents produces synthetic packet events for local development.
 // Simulates normal traffic (~20 pkt/s) with periodic bursts every 15s.
 // Respects blacklist/whitelist from mgr when assigning actions.
-func GenerateEvents(ctx context.Context, mgr *Manager) <-chan model.Event {
+func GenerateEvents(ctx context.Context, mgr listChecker) <-chan model.Event {
 	out := make(chan model.Event, 64)
 	var seq atomic.Uint64
 
@@ -77,7 +82,7 @@ func GenerateEvents(ctx context.Context, mgr *Manager) <-chan model.Event {
 	return out
 }
 
-func newEvent(rng *rand.Rand, mgr *Manager, seq uint64) model.Event {
+func newEvent(rng *rand.Rand, mgr listChecker, seq uint64) model.Event {
 	useIPv6 := rng.Intn(5) == 0
 
 	var src, dst [16]byte
@@ -100,25 +105,63 @@ func newEvent(rng *rand.Rand, mgr *Manager, seq uint64) model.Event {
 
 	proto := protos[rng.Intn(len(protos))]
 
+	var srcPort, dstPort uint16
+	var tcpFlags uint8
+
+	switch proto {
+	case 6: // TCP
+		srcPort = uint16(1024 + rng.Intn(60000))
+		dstPort = commonTCPPort(rng)
+		tcpFlags = randomTCPFlags(rng)
+	case 17: // UDP
+		srcPort = uint16(1024 + rng.Intn(60000))
+		dstPort = commonUDPPort(rng)
+	}
+
+	pktSize := uint16(64 + rng.Intn(1436))
+
 	var action uint8
 	switch {
 	case mgr.IsBlacklisted(srcStr):
 		action = uint8(model.ActDrop)
 	case mgr.IsWhitelisted(srcStr):
 		action = uint8(model.ActSkip)
-	case proto == 6 && rng.Intn(30) == 0:
+	case proto == 6 && (srcPort == 22 || dstPort == 22):
 		action = uint8(model.ActSSHBypass)
 	default:
 		action = uint8(model.ActPass)
 	}
 
 	return model.Event{
-		Ts:         uint64(time.Now().UnixNano()),
-		Seq:        seq,
-		Src:        src,
-		Dst:        dst,
-		Proto:      proto,
-		Action:     action,
-		Ip_Version: ipVersion,
+		Ts:        uint64(time.Now().UnixNano()),
+		Seq:       seq,
+		Src:       src,
+		Dst:       dst,
+		Proto:     proto,
+		Action:    action,
+		IPVersion: ipVersion,
+		SrcPort:   srcPort,
+		DstPort:   dstPort,
+		PktSize:   pktSize,
+		TCPFlags:  tcpFlags,
+		Direction: uint8(rng.Intn(2)),
 	}
+}
+
+var tcpPorts = []uint16{22, 80, 443, 3306, 5432, 6379, 8080, 8443}
+var udpPorts = []uint16{53, 123, 161, 500, 4500}
+
+// TCP flags: SYN=0x02, ACK=0x10, SYN+ACK=0x12, FIN+ACK=0x11, RST=0x04, PSH+ACK=0x18
+var tcpFlagSets = []uint8{0x02, 0x10, 0x12, 0x11, 0x04, 0x18}
+
+func commonTCPPort(rng *rand.Rand) uint16 {
+	return tcpPorts[rng.Intn(len(tcpPorts))]
+}
+
+func commonUDPPort(rng *rand.Rand) uint16 {
+	return udpPorts[rng.Intn(len(udpPorts))]
+}
+
+func randomTCPFlags(rng *rand.Rand) uint8 {
+	return tcpFlagSets[rng.Intn(len(tcpFlagSets))]
 }

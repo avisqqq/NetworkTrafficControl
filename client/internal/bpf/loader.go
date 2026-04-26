@@ -1,9 +1,11 @@
 package bpf
 
 import (
+	"context"
 	"log"
 	"net"
 
+	"client/internal/model"
 	"client/internal/persist"
 
 	"github.com/cilium/ebpf"
@@ -12,12 +14,12 @@ import (
 )
 
 type Manager struct {
-	Coll        *ebpf.Collection
-	IngressLink link.Link
-	EgressLink  link.Link
-	Events      *ringbuf.Reader
-	Blacklist   *ebpf.Map
-	Whitelist   *ebpf.Map
+	coll        *ebpf.Collection
+	ingressLink link.Link
+	egressLink  link.Link
+	events      *ringbuf.Reader
+	blacklist   *ebpf.Map
+	whitelist   *ebpf.Map
 	store       *persist.Store
 }
 
@@ -68,18 +70,22 @@ func Load(objPath, ifaceName string, store *persist.Store) (*Manager, error) {
 	}
 
 	m := &Manager{
-		Coll:        coll,
-		IngressLink: ingressLink,
-		EgressLink:  egressLink,
-		Events:      rd,
-		Blacklist:   coll.Maps["blacklist"],
-		Whitelist:   coll.Maps["whitelist"],
+		coll:        coll,
+		ingressLink: ingressLink,
+		egressLink:  egressLink,
+		events:      rd,
+		blacklist:   coll.Maps["blacklist"],
+		whitelist:   coll.Maps["whitelist"],
 		store:       store,
 	}
 	if store != nil {
 		m.loadFromStore()
 	}
 	return m, nil
+}
+
+func (m *Manager) ReadEvents(ctx context.Context) <-chan model.Event {
+	return readEvents(ctx, m.events)
 }
 
 func (m *Manager) loadFromStore() {
@@ -89,12 +95,12 @@ func (m *Manager) loadFromStore() {
 		return
 	}
 	for _, ip := range bl {
-		if _, err := AddIpToList(m.Blacklist, ip); err != nil {
+		if _, err := addIPToList(m.blacklist, ip); err != nil {
 			log.Printf("persist: restore blacklist %s: %v", ip, err)
 		}
 	}
 	for _, ip := range wl {
-		if _, err := AddIpToList(m.Whitelist, ip); err != nil {
+		if _, err := addIPToList(m.whitelist, ip); err != nil {
 			log.Printf("persist: restore whitelist %s: %v", ip, err)
 		}
 	}
@@ -104,12 +110,12 @@ func (m *Manager) save() {
 	if m.store == nil {
 		return
 	}
-	bl, err := GetIpFromList(m.Blacklist)
+	bl, err := getIPsFromList(m.blacklist)
 	if err != nil {
 		log.Printf("persist: save blacklist: %v", err)
 		return
 	}
-	wl, err := GetIpFromList(m.Whitelist)
+	wl, err := getIPsFromList(m.whitelist)
 	if err != nil {
 		log.Printf("persist: save whitelist: %v", err)
 		return
@@ -128,8 +134,8 @@ func (m *Manager) save() {
 }
 
 func (m *Manager) Close() {
-	m.Events.Close()
-	m.EgressLink.Close()
-	m.IngressLink.Close()
-	m.Coll.Close()
+	m.events.Close()
+	m.egressLink.Close()
+	m.ingressLink.Close()
+	m.coll.Close()
 }

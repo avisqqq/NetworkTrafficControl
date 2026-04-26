@@ -7,7 +7,11 @@ import (
 	"client/internal/model"
 )
 
-func BlacklistHandler(mgr ListManager) http.HandlerFunc {
+func listHandler(
+	add    func(string) (model.IPKey, error),
+	remove func(string) (model.IPKey, error),
+	getAll func() ([]model.IPEntry, error),
+) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 
@@ -17,7 +21,7 @@ func BlacklistHandler(mgr ListManager) http.HandlerFunc {
 				http.Error(w, "bad json", 400)
 				return
 			}
-			key, err := mgr.AddToBlackList(req.IP)
+			key, err := add(req.IP)
 			if err != nil {
 				http.Error(w, err.Error(), 400)
 				return
@@ -34,7 +38,7 @@ func BlacklistHandler(mgr ListManager) http.HandlerFunc {
 				http.Error(w, "missing ip", 400)
 				return
 			}
-			key, err := mgr.RemoveFromBlackList(ip)
+			key, err := remove(ip)
 			if err != nil {
 				http.Error(w, err.Error(), 400)
 				return
@@ -45,7 +49,7 @@ func BlacklistHandler(mgr ListManager) http.HandlerFunc {
 			})
 
 		case http.MethodGet:
-			list, err := mgr.GetFromBlackList()
+			list, err := getAll()
 			if err != nil {
 				http.Error(w, err.Error(), 500)
 				return

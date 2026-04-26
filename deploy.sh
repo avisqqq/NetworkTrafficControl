@@ -17,6 +17,7 @@ echo "[*] Target: $TARGET"
 RPI_HOST="${RPI_HOST:-rpi.local}"
 RPI_USER="${RPI_USER:-rpi}"
 RPI_DIR="${RPI_DIR:-/home/${RPI_USER}/ntc}"
+NTC_PORT="${NTC_PORT:-8086}"
 
 if [ "$TARGET" = "rpi" ]; then
     GOARCH=arm64
@@ -25,6 +26,8 @@ if [ "$TARGET" = "rpi" ]; then
 elif [ "$TARGET" = "rpi-install-dependencies" ]; then
     :
 elif [ "$TARGET" = "rpi-install-service" ]; then
+    :
+elif [ "$TARGET" = "rpi-install-stack" ]; then
     :
 elif [ "$TARGET" = "rpi-build" ]; then
     :
@@ -37,9 +40,47 @@ else
     exit 1
 fi
 
+# ── rpi-install-dependencies ──────────────────────────────────────────────────
+if [ "$TARGET" = "rpi-install-dependencies" ]; then
+    echo "[*] Installing dependencies on RPi..."
+    ssh -t "${RPI_USER}@${RPI_HOST}" "
+        set -e
+        sudo apt-get update -qq
+
+        echo '[*] Installing clang, llvm, linux headers...'
+        sudo apt-get install -y clang llvm linux-headers-\$(uname -r) libbpf-dev libc6-dev
+
+        echo '[*] Installing Go...'
+        if [ ! -x /usr/local/go/bin/go ]; then
+            GO_VERSION=1.23.4
+            curl -fsSL https://go.dev/dl/go\${GO_VERSION}.linux-arm64.tar.gz -o /tmp/go.tar.gz
+            sudo tar -C /usr/local -xzf /tmp/go.tar.gz
+            rm /tmp/go.tar.gz
+            echo 'export PATH=\$PATH:/usr/local/go/bin' >> ~/.profile
+            echo 'export PATH=\$PATH:/usr/local/go/bin' >> ~/.bashrc
+        else
+            echo 'Go already installed: '\$(/usr/local/go/bin/go version)
+        fi
+
+        echo '[*] Installing Docker...'
+        if ! command -v docker &>/dev/null; then
+            curl -fsSL https://get.docker.com | sudo sh
+            sudo usermod -aG docker \$USER
+            sudo systemctl enable docker
+            sudo systemctl start docker
+            echo 'Docker installed — you may need to re-login for group membership'
+        else
+            echo 'Docker already installed: '\$(docker --version)
+        fi
+    "
+    echo "[✓] Done — reconnect SSH or run: source ~/.profile"
+    exit 0
+fi
+
+# ── rpi-install-service ───────────────────────────────────────────────────────
 if [ "$TARGET" = "rpi-install-service" ]; then
     echo "[*] Installing ntc systemd service on RPi..."
-    ssh "${RPI_USER}@${RPI_HOST}" "sudo tee /etc/systemd/system/ntc.service > /dev/null << 'EOF'
+    ssh -t "${RPI_USER}@${RPI_HOST}" "sudo tee /etc/systemd/system/ntc.service > /dev/null << 'EOF'
 [Unit]
 Description=Network Traffic Control
 After=network.target
@@ -58,7 +99,7 @@ EOF
     sudo systemctl enable ntc
     sudo systemctl restart ntc
     "
-    echo "[✓] Done"
+    echo "[✓] NTC service installed"
     echo ""
     echo "    sudo systemctl start ntc"
     echo "    sudo systemctl stop ntc"
@@ -67,35 +108,59 @@ EOF
     exit 0
 fi
 
-if [ "$TARGET" = "rpi-install-dependencies" ]; then
-    echo "[*] Installing dependencies on RPi..."
-    ssh "${RPI_USER}@${RPI_HOST}" "
-        set -e
-        sudo apt-get update -qq
+# ── rpi-install-stack ─────────────────────────────────────────────────────────
+# Copies VictoriaMetrics + Grafana compose stack to RPi and starts it.
+# NTC scrape target is set to localhost since everything runs on RPi.
+if [ "$TARGET" = "rpi-install-stack" ]; then
+    echo "[*] Copying monitoring stack to RPi..."
+    ssh "${RPI_USER}@${RPI_HOST}" "mkdir -p ${RPI_DIR}/grafana ${RPI_DIR}/victoria"
 
-        echo '[*] Installing clang, llvm, linux headers...'
-        sudo apt-get install -y clang llvm linux-headers-\$(uname -r) libbpf-dev libc6-dev
+    rsync -az grafana/ "${RPI_USER}@${RPI_HOST}:${RPI_DIR}/grafana/"
+    scp docker-compose.yml "${RPI_USER}@${RPI_HOST}:${RPI_DIR}/"
 
-        echo '[*] Installing Go...'
-        if ! command -v go &>/dev/null; then
-            GO_VERSION=1.23.4
-            curl -fsSL https://go.dev/dl/go\${GO_VERSION}.linux-arm64.tar.gz -o /tmp/go.tar.gz
-            sudo tar -C /usr/local -xzf /tmp/go.tar.gz
-            rm /tmp/go.tar.gz
-            echo 'export PATH=\$PATH:/usr/local/go/bin' >> ~/.profile
-            echo 'export PATH=\$PATH:/usr/local/go/bin' >> ~/.bashrc
-        else
-            echo 'Go already installed: '\$(go version)
-        fi
+    # Generate RPi-specific scrape config — NTC is on localhost, not host.docker.internal
+    echo "[*] Generating scrape config for RPi (localhost:${NTC_PORT})..."
+    cat > /tmp/ntc-scrape.yaml << EOF
+global:
+  scrape_interval: 10s
+
+scrape_configs:
+  - job_name: ntc
+    static_configs:
+      - targets:
+          - host.docker.internal:${NTC_PORT}
+    metrics_path: /metrics
+EOF
+    scp /tmp/ntc-scrape.yaml "${RPI_USER}@${RPI_HOST}:${RPI_DIR}/victoria/scrape.yaml"
+    rm /tmp/ntc-scrape.yaml
+
+    echo "[*] Starting monitoring stack on RPi..."
+    ssh -t "${RPI_USER}@${RPI_HOST}" "
+        cd ${RPI_DIR}
+        docker compose pull
+        docker compose up -d
+        docker compose ps
     "
-    echo "[✓] Done — reconnect SSH or run: source ~/.profile"
+    echo "[✓] Stack started"
+    echo ""
+    echo "    Grafana:        http://${RPI_HOST}:3000  (admin / admin)"
+    echo "    VictoriaMetrics: http://${RPI_HOST}:8428"
     exit 0
 fi
 
+# ── rpi-build ─────────────────────────────────────────────────────────────────
 if [ "$TARGET" = "rpi-build" ]; then
+    echo "[*] Building frontend (Svelte)..."
+    cd client/web-svelte && npm run build
+    cd ../..
+
     echo "[*] Copying sources to RPi..."
     ssh "${RPI_USER}@${RPI_HOST}" "mkdir -p ${RPI_DIR}"
-    rsync -az --delete --exclude='data/' --exclude='*.o' --exclude='ntc_bin' \
+    rsync -az --delete \
+        --exclude='data/' \
+        --exclude='*.o' \
+        --exclude='ntc_bin' \
+        --exclude='web-svelte/' \
         client/ "${RPI_USER}@${RPI_HOST}:${RPI_DIR}/client/"
     rsync -az eBPF/ "${RPI_USER}@${RPI_HOST}:${RPI_DIR}/eBPF/"
     scp config.yaml "${RPI_USER}@${RPI_HOST}:${RPI_DIR}/"
@@ -124,6 +189,13 @@ if [ "$TARGET" = "rpi-build" ]; then
     exit 0
 fi
 
+# ── local / rpi (cross-compile) ───────────────────────────────────────────────
+
+# --- Build frontend ---
+echo "[*] Building frontend (Svelte)..."
+cd client/web-svelte && npm run build
+cd ../..
+
 # --- Compile eBPF ---
 echo "[*] Compiling eBPF..."
 cd eBPF
@@ -143,7 +215,7 @@ if [ "$TARGET" = "local" ]; then
     rm -rf execute/*
 fi
 
-# --- Copy ---
+# --- Copy artifacts ---
 echo "[*] Copying artifacts..."
 
 if [ "$TARGET" = "rpi" ]; then
@@ -160,7 +232,7 @@ fi
 echo "[✓] Done — deployed to $DEST"
 echo ""
 if [ "$TARGET" = "rpi" ]; then
-    echo "    Run: ssh ${RPI_USER}@${RPI_HOST} '${RPI_DIR}/ntc'"
+    echo "    Run: ssh ${RPI_USER}@${RPI_HOST} 'sudo ${RPI_DIR}/ntc'"
 else
     echo "    Run: ./execute/ntc"
 fi

@@ -14,9 +14,11 @@ import (
 	"client/internal/bpf"
 	"client/internal/clock"
 	"client/internal/config"
+	"client/internal/flow"
 	"client/internal/mock"
 	"client/internal/model"
 	"client/internal/persist"
+	"client/internal/stats"
 )
 
 func main() {
@@ -59,36 +61,68 @@ func main() {
 		}
 		defer m.Close()
 		mgr = m
-		events = bpf.ReadEvents(ctx, m.Events)
+		events = m.ReadEvents(ctx)
 	}
 
-	sse := httpapi.NewSSE()
+	sse      := httpapi.NewSSE()
+	tracker  := flow.NewTracker()
+	ipStats  := stats.NewIPTracker()
 
+	// Consume raw packets: update flow table + IP stats, forward to SSE for live view.
 	go func() {
-		for e := range events {
-			eventTime := clk.FromTs(e.Ts)
+		flushTicker := time.NewTicker(5 * time.Second)
+		evictTicker := time.NewTicker(2 * time.Minute)
+		defer flushTicker.Stop()
+		defer evictTicker.Stop()
 
-			out := model.OutEvent{
-				Time:      eventTime.Format("15:04:05.000"),
-				Seq:       e.Seq,
-				Src:       bpf.ParseIp(e.Src, e.Ip_Version),
-				Dst:       bpf.ParseIp(e.Dst, e.Ip_Version),
-				Proto:     model.ProtoString(e.Proto),
-				Action:    model.ParseAction(e.Action).String(),
-				Direction: model.ParseDirection(e.Direction),
+		for {
+			select {
+			case e, ok := <-events:
+				if !ok {
+					return
+				}
+				tracker.Update(e)
+
+				srcIP := bpf.ParseIp(e.Src, e.IPVersion)
+				ipStats.Update(srcIP, e)
+
+				eventTime := clk.FromTs(e.Ts)
+				out := model.OutEvent{
+					Time:      eventTime.Format("15:04:05.000"),
+					Seq:       e.Seq,
+					Src:       srcIP,
+					Dst:       bpf.ParseIp(e.Dst, e.IPVersion),
+					Proto:     model.ProtoString(e.Proto),
+					Action:    model.ParseAction(e.Action).String(),
+					Direction: model.ParseDirection(e.Direction),
+				}
+				if j, err := json.Marshal(out); err == nil {
+					sse.Broadcast(j)
+				}
+
+			case <-flushTicker.C:
+				tracker.Flush()
+				ipStats.SetActiveFlows(tracker.ActiveCount())
+
+			case <-evictTicker.C:
+				ipStats.Evict()
 			}
+		}
+	}()
 
-			j, err := json.Marshal(out)
-			if err != nil {
-				continue
-			}
-
-			sse.Broadcast(j)
+	// Log closed flows — placeholder for SQLite export.
+	go func() {
+		for f := range tracker.Flows() {
+			log.Printf("flow closed: %s:%d → %s:%d proto=%d pkts=%d bytes=%d",
+				bpf.ParseIp(f.Src, f.IPVersion), f.SrcPort,
+				bpf.ParseIp(f.Dst, f.IPVersion), f.DstPort,
+				f.Proto, f.PktCount, f.ByteCount,
+			)
 		}
 	}()
 
 	addr := cfg.ServerAddr()
-	srv := httpapi.NewServer(addr, mgr, sse)
+	srv := httpapi.NewServer(addr, "./web", mgr, sse, ipStats)
 
 	go func() {
 		log.Printf("HTTP listening on %s", addr)

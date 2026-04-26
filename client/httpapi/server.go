@@ -2,30 +2,34 @@ package httpapi
 
 import (
 	"net/http"
+	"time"
 
 	"client/internal/model"
+	"client/internal/stats"
 )
 
 type ListManager interface {
-	AddToBlackList(ip string) (model.Ip_Key, error)
-	RemoveFromBlackList(ip string) (model.Ip_Key, error)
-	GetFromBlackList() ([]model.IpEntry, error)
-	AddToWhiteList(ip string) (model.Ip_Key, error)
-	RemoveFromWhiteList(ip string) (model.Ip_Key, error)
-	GetFromWhiteList() ([]model.IpEntry, error)
+	AddToBlackList(ip string) (model.IPKey, error)
+	RemoveFromBlackList(ip string) (model.IPKey, error)
+	GetFromBlackList() ([]model.IPEntry, error)
+	AddToWhiteList(ip string) (model.IPKey, error)
+	RemoveFromWhiteList(ip string) (model.IPKey, error)
+	GetFromWhiteList() ([]model.IPEntry, error)
 }
 
-func NewServer(addr string, mgr ListManager, sse *SSE) *http.Server {
+func NewServer(addr, webDir string, mgr ListManager, sse *SSE, ipStats *stats.IPTracker) *http.Server {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/events", sse.Handler)
-	mux.HandleFunc("/blacklist", BlacklistHandler(mgr))
-	mux.HandleFunc("/whitelist", WhitelistHandler(mgr))
-	fs := http.FileServer(http.Dir("./web"))
-	mux.Handle("/", fs)
+	mux.HandleFunc("/metrics", metricsHandler(ipStats))
+	mux.HandleFunc("/blacklist", listHandler(mgr.AddToBlackList, mgr.RemoveFromBlackList, mgr.GetFromBlackList))
+	mux.HandleFunc("/whitelist", listHandler(mgr.AddToWhiteList, mgr.RemoveFromWhiteList, mgr.GetFromWhiteList))
+	mux.Handle("/", http.FileServer(http.Dir(webDir)))
 
 	return &http.Server{
-		Addr:    addr,
-		Handler: mux,
+		Addr:              addr,
+		Handler:           mux,
+		ReadHeaderTimeout: 5 * time.Second,
+		IdleTimeout:       120 * time.Second,
 	}
 }

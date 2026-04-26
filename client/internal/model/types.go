@@ -1,31 +1,24 @@
 package model
 
-import "net"
-
-type Event struct {
-	Ts  uint64
-	Seq uint64
-
-	Src [16]uint8
-	Dst [16]uint8
-
-	Proto      uint8
-	Action     uint8
-	Ip_Version uint8
-	Direction  uint8
-	Pad        [4]byte
-}
-
-const (
-	DirIngress uint8 = 0
-	DirEgress  uint8 = 1
+import (
+	"fmt"
+	"net"
 )
 
-func ParseDirection(d uint8) string {
-	if d == DirEgress {
-		return "EGRESS"
-	}
-	return "INGRESS"
+type Event struct {
+	Ts        uint64
+	Seq       uint64
+	Src       [16]uint8
+	Dst       [16]uint8
+	SrcPort   uint16
+	DstPort   uint16
+	PktSize   uint16
+	Proto     uint8
+	Action    uint8
+	IPVersion uint8
+	Direction uint8
+	TCPFlags  uint8
+	Pad       [1]byte
 }
 
 type OutEvent struct {
@@ -37,6 +30,8 @@ type OutEvent struct {
 	Action    string `json:"action"`
 	Direction string `json:"direction"`
 }
+
+// --- Action ---
 
 type Action uint8
 
@@ -72,8 +67,32 @@ func ParseAction(v uint8) Action {
 	}
 }
 
+// --- Direction ---
+
+type Direction uint8
+
+const (
+	DirIngress Direction = 0
+	DirEgress  Direction = 1
+)
+
+func (d Direction) String() string {
+	if d == DirEgress {
+		return "EGRESS"
+	}
+	return "INGRESS"
+}
+
+func ParseDirection(d uint8) string {
+	return Direction(d).String()
+}
+
+// --- Proto ---
+
 func ProtoString(p uint8) string {
 	switch p {
+	case 1:
+		return "ICMP"
 	case 6:
 		return "TCP"
 	case 17:
@@ -83,19 +102,37 @@ func ProtoString(p uint8) string {
 	}
 }
 
-type Ip_Key struct {
+// --- IP ---
+
+type IPKey struct {
 	Version uint8
 	Address [16]byte
 }
 
-func ParseIP(k Ip_Key) string {
+func ParseIP(k IPKey) string {
 	if k.Version == 4 {
 		return net.IP(k.Address[:4]).String()
 	}
 	return net.IP(k.Address[:16]).String()
 }
 
-type IpEntry struct {
+func BuildIPKey(ipStr string) (IPKey, error) {
+	var key IPKey
+	ip := net.ParseIP(ipStr)
+	if ip == nil {
+		return key, fmt.Errorf("invalid IP: %s", ipStr)
+	}
+	if v4 := ip.To4(); v4 != nil {
+		key.Version = 4
+		copy(key.Address[:4], v4)
+		return key, nil
+	}
+	key.Version = 6
+	copy(key.Address[:], ip.To16())
+	return key, nil
+}
+
+type IPEntry struct {
 	IP      string `json:"ip"`
 	Version uint8  `json:"version"`
 }

@@ -10,12 +10,12 @@ import (
 	"github.com/cilium/ebpf/ringbuf"
 )
 
-func ReadEvents(ctx context.Context, rd *ringbuf.Reader) <-chan model.Event {
+// readEvents reads from rd until ctx is cancelled or rd is closed (e.g. by Manager.Close).
+func readEvents(ctx context.Context, rd *ringbuf.Reader) <-chan model.Event {
 	out := make(chan model.Event)
 
 	go func() {
 		defer close(out)
-		defer rd.Close()
 
 		for {
 			select {
