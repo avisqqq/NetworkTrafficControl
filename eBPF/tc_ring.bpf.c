@@ -4,7 +4,9 @@
 #include <linux/ip.h>
 #include <linux/ipv6.h>
 #include <linux/tcp.h>
+#include <linux/udp.h>
 #include <linux/in.h>
+#include <linux/pkt_cls.h>
 #include <bpf/bpf_helpers.h>
 #include <bpf/bpf_endian.h>
 
@@ -17,10 +19,14 @@
 #endif
 
 
-//Single package structure for ring buffer
+// Single packet event structure for the ring buffer.
 struct event {
     __u64 ts;
     __u64 seq;
+
+    __u32 ifindex;
+    __u16 src_port;
+    __u16 dst_port;
 
     __u8 src[16];
     __u8 dst[16];
@@ -28,7 +34,8 @@ struct event {
     __u8 proto;
     __u8 action;
     __u8 ip_version;
-    __u8 pad[5];
+    __u8 direction;
+    __u8 pad[4];
 };
 
 
@@ -37,6 +44,11 @@ enum event_action{
     ACT_DROP = 1,
     ACT_SKIP = 2,
     ACT_SSH_BYPASS = 3,
+};
+
+enum event_direction {
+    DIR_INGRESS = 0,
+    DIR_EGRESS = 1,
 };
 
 enum stat_key{
@@ -121,6 +133,10 @@ static __always_inline void fill_ipv6_key(
 static __always_inline void emit_event(
         const __u8 *src, 
         const __u8 *dst, 
+        __u32 ifindex,
+        __u16 src_port,
+        __u16 dst_port,
+        __u8 direction,
         __u8 ip_version, 
         __u8 proto, 
         __u8 action){
@@ -130,6 +146,9 @@ static __always_inline void emit_event(
 
     e->ts = bpf_ktime_get_boot_ns();
     e->seq = next_seq();
+    e->ifindex = ifindex;
+    e->src_port = src_port;
+    e->dst_port = dst_port;
     
     __builtin_memset(e->src, 0, 16);
     __builtin_memset(e->dst, 0, 16);
@@ -145,28 +164,33 @@ static __always_inline void emit_event(
     e->proto = proto;
     e->action = action;
     e->ip_version = ip_version;
+    e->direction = direction;
 
     bpf_ringbuf_submit(e, 0);
 }
 
 static __always_inline int handle_ipv4(
             void *data_end,
-            struct ethhdr *eth)
+            struct ethhdr *eth,
+            __u32 ifindex,
+            __u8 direction)
 {
     struct iphdr *ip = (void *)(eth + 1);
     if ((void *)(ip + 1) > data_end)
-        return XDP_PASS;
+        return TC_ACT_OK;
         
 
 
     __u32 ip_hdr_len =  ip->ihl*4;
     if(ip_hdr_len < sizeof(*ip))
-        return XDP_PASS;
+        return TC_ACT_OK;
     if((void *)ip + ip_hdr_len > data_end)
-        return XDP_PASS;
+        return TC_ACT_OK;
       
     __u32 src = ip->saddr;
     __u32 dst = ip->daddr;
+    __u16 src_port = 0;
+    __u16 dst_port = 0;
     
 
      struct ip_key src_key;
@@ -178,43 +202,51 @@ static __always_inline int handle_ipv4(
     if(ip->protocol == IPPROTO_TCP){
         struct tcphdr *tcp = (void *)ip + ip_hdr_len;
         if((void *)(tcp + 1) > data_end)
-            return XDP_PASS;
+            return TC_ACT_OK;
+        src_port = bpf_ntohs(tcp->source);
+        dst_port = bpf_ntohs(tcp->dest);
 
-        if(bpf_ntohs(tcp->dest) == 22 ||
-            bpf_ntohs(tcp->source) == 22){
-            emit_event((const __u8 *)&src, (const __u8 *)&dst,4, ip->protocol, ACT_SSH_BYPASS);
-                return XDP_PASS;
+        if(dst_port == 22 || src_port == 22){
+            emit_event((const __u8 *)&src, (const __u8 *)&dst, ifindex, src_port, dst_port, direction, 4, ip->protocol, ACT_SSH_BYPASS);
+                return TC_ACT_OK;
         }
+    } else if(ip->protocol == IPPROTO_UDP){
+        struct udphdr *udp = (void *)ip + ip_hdr_len;
+        if((void *)(udp + 1) > data_end)
+            return TC_ACT_OK;
+        src_port = bpf_ntohs(udp->source);
+        dst_port = bpf_ntohs(udp->dest);
     }
 
 
     if(bpf_map_lookup_elem(&blacklist, &src_key) ||
            bpf_map_lookup_elem(&blacklist, &dst_key)){
         inc_stat(STAT_DROP);
-        emit_event((const __u8 *)&src, (const __u8 *)&dst,4, ip->protocol, ACT_DROP);
-        return XDP_DROP;
+        emit_event((const __u8 *)&src, (const __u8 *)&dst, ifindex, src_port, dst_port, direction, 4, ip->protocol, ACT_DROP);
+        return TC_ACT_SHOT;
     }
 
     if(bpf_map_lookup_elem(&whitelist, &src_key) ||
            bpf_map_lookup_elem(&whitelist, &dst_key)){
-        inc_stat(STAT_SKIP);
-        emit_event((const __u8 *)&src, (const __u8 *)&dst,4, ip->protocol, ACT_SKIP);
-        return XDP_PASS;
+        inc_stat(STAT_PASS);
+        return TC_ACT_OK;
     }
 
     inc_stat(STAT_PASS);
-    emit_event((const __u8 *)&src, (const __u8 *)&dst,4, ip->protocol, ACT_PASS);
+    emit_event((const __u8 *)&src, (const __u8 *)&dst, ifindex, src_port, dst_port, direction, 4, ip->protocol, ACT_PASS);
 
-    return XDP_PASS;
+    return TC_ACT_OK;
 }
 
 static __always_inline int handle_ipv6(
             void *data_end,
-            struct ethhdr *eth)
+            struct ethhdr *eth,
+            __u32 ifindex,
+            __u8 direction)
 {
     struct ipv6hdr *ipv6 = (void *)(eth + 1);
     if ((void *)(ipv6 + 1) > data_end)
-        return XDP_PASS;
+        return TC_ACT_OK;
         
     
      struct ip_key src_key;
@@ -222,56 +254,75 @@ static __always_inline int handle_ipv6(
 
      fill_ipv6_key(&src_key, &ipv6->saddr);
      fill_ipv6_key(&dst_key, &ipv6->daddr);
+    __u16 src_port = 0;
+    __u16 dst_port = 0;
 
     if(ipv6->nexthdr== IPPROTO_TCP){
         struct tcphdr *tcp = (void *)(ipv6 + 1); 
         if((void *)(tcp + 1) > data_end)
-            return XDP_PASS;
+            return TC_ACT_OK;
+        src_port = bpf_ntohs(tcp->source);
+        dst_port = bpf_ntohs(tcp->dest);
 
-        if(bpf_ntohs(tcp->dest) == 22 ||
-            bpf_ntohs(tcp->source) == 22){
-            emit_event((const __u8 *)&ipv6->saddr, (const __u8 *)&ipv6->daddr,6, ipv6->nexthdr, ACT_SSH_BYPASS);
-                return XDP_PASS;
+        if(dst_port == 22 || src_port == 22){
+            emit_event((const __u8 *)&ipv6->saddr, (const __u8 *)&ipv6->daddr, ifindex, src_port, dst_port, direction, 6, ipv6->nexthdr, ACT_SSH_BYPASS);
+                return TC_ACT_OK;
         }
+    } else if(ipv6->nexthdr == IPPROTO_UDP){
+        struct udphdr *udp = (void *)(ipv6 + 1); 
+        if((void *)(udp + 1) > data_end)
+            return TC_ACT_OK;
+        src_port = bpf_ntohs(udp->source);
+        dst_port = bpf_ntohs(udp->dest);
     }
 
     if(bpf_map_lookup_elem(&blacklist, &src_key) ||
            bpf_map_lookup_elem(&blacklist, &dst_key)){
         inc_stat(STAT_DROP);
-            emit_event((const __u8 *)&ipv6->saddr, (const __u8 *)&ipv6->daddr,6, ipv6->nexthdr, ACT_DROP);
-        return XDP_DROP;
+            emit_event((const __u8 *)&ipv6->saddr, (const __u8 *)&ipv6->daddr, ifindex, src_port, dst_port, direction, 6, ipv6->nexthdr, ACT_DROP);
+        return TC_ACT_SHOT;
     }
 
     if(bpf_map_lookup_elem(&whitelist, &src_key) ||
            bpf_map_lookup_elem(&whitelist, &dst_key)){
-        inc_stat(STAT_SKIP);
-            emit_event((const __u8 *)&ipv6->saddr, (const __u8 *)&ipv6->daddr,6, ipv6->nexthdr, ACT_SKIP);
-        return XDP_PASS;
+        inc_stat(STAT_PASS);
+        return TC_ACT_OK;
     }
 
     inc_stat(STAT_PASS);
-    emit_event((const __u8 *)&ipv6->saddr, (const __u8 *)&ipv6->daddr,6, ipv6->nexthdr, ACT_PASS);
-    return XDP_PASS;
+    emit_event((const __u8 *)&ipv6->saddr, (const __u8 *)&ipv6->daddr, ifindex, src_port, dst_port, direction, 6, ipv6->nexthdr, ACT_PASS);
+    return TC_ACT_OK;
 }
 
-SEC("xdp")
-int xdp_basic(struct xdp_md *ctx)
+static __always_inline int handle_packet(struct __sk_buff *ctx, __u8 direction)
 {
     void *data     = (void *)(long)ctx->data;
     void *data_end = (void *)(long)ctx->data_end;
 
     struct ethhdr *eth = data;
     if ((void *)(eth + 1) > data_end)
-        return XDP_PASS;
+        return TC_ACT_OK;
     __u16 h_proto = bpf_ntohs(eth->h_proto);
     if (h_proto == ETH_P_IP)
     {
-        return handle_ipv4(data_end ,eth);
+        return handle_ipv4(data_end, eth, ctx->ifindex, direction);
     }
     if(h_proto == ETH_P_IPV6){
-        return handle_ipv6(data_end ,eth);
+        return handle_ipv6(data_end, eth, ctx->ifindex, direction);
     }
-               return XDP_PASS;
+    return TC_ACT_OK;
+}
+
+SEC("tc")
+int tc_ingress(struct __sk_buff *ctx)
+{
+    return handle_packet(ctx, DIR_INGRESS);
+}
+
+SEC("tc")
+int tc_egress(struct __sk_buff *ctx)
+{
+    return handle_packet(ctx, DIR_EGRESS);
 }
 
 char LICENSE[] SEC("license") = "GPL";

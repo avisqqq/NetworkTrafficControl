@@ -2,7 +2,6 @@ package main
 
 import (
 	"context"
-	"encoding/json"
 	"flag"
 	"log"
 	"os"
@@ -40,6 +39,7 @@ func main() {
 
 	var mgr httpapi.ListManager
 	var events <-chan model.Event
+	ifaceName := "mock0"
 
 	store, err := persist.New(cfg.Persistence.Path)
 	if err != nil {
@@ -52,14 +52,18 @@ func main() {
 		mgr = m
 		events = mock.GenerateEvents(ctx, m)
 	} else {
-		iface := cfg.Network.Interfaces[0]
-		m, err := bpf.Load("xdp_ring.bpf.o", iface, store)
+		if len(cfg.Network.Interfaces) == 0 {
+			log.Fatal("config: network.interfaces must contain at least one interface")
+		}
+		ifaceName = cfg.Network.Interfaces[0]
+		m, err := bpf.Load("tc_ring.bpf.o", ifaceName, store)
 		if err != nil {
 			log.Fatal(err)
 		}
 		defer m.Close()
 		mgr = m
 		events = bpf.ReadEvents(ctx, m.Events)
+		ifaceName = m.Interface
 	}
 
 	sse := httpapi.NewSSE()
@@ -67,22 +71,8 @@ func main() {
 	go func() {
 		for e := range events {
 			eventTime := clk.FromTs(e.Ts)
-
-			out := model.OutEvent{
-				Time:   eventTime.Format("15:04:05.000"),
-				Seq:    e.Seq,
-				Src:    bpf.ParseIp(e.Src, e.Ip_Version),
-				Dst:    bpf.ParseIp(e.Dst, e.Ip_Version),
-				Proto:  model.ProtoString(e.Proto),
-				Action: model.ParseAction(e.Action).String(),
-			}
-
-			j, err := json.Marshal(out)
-			if err != nil {
-				continue
-			}
-
-			sse.Broadcast(j)
+			out := httpapi.NewEventDTO(e, ifaceName, eventTime)
+			_ = sse.BroadcastJSON(out)
 		}
 	}()
 

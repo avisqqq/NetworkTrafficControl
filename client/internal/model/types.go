@@ -3,25 +3,20 @@ package model
 import "net"
 
 type Event struct {
-	Ts  uint64
-	Seq uint64
+	Ts      uint64
+	Seq     uint64
+	Ifindex uint32
+	SrcPort uint16
+	DstPort uint16
 
 	Src [16]uint8
 	Dst [16]uint8
 
-	Proto      uint8
-	Action     uint8
-	Ip_Version uint8
-	Pad        [5]byte
-}
-
-type OutEvent struct {
-	Time   string `json:"time"`
-	Seq    uint64 `json:"seq"`
-	Src    string `json:"src"`
-	Dst    string `json:"dst"`
-	Proto  string `json:"proto"`
-	Action string `json:"action"`
+	Proto     uint8
+	Action    uint8
+	IPVersion uint8
+	Direction uint8
+	Pad       [4]byte
 }
 
 type Action uint8
@@ -64,8 +59,38 @@ func ProtoString(p uint8) string {
 		return "TCP"
 	case 17:
 		return "UDP"
+	case 1, 58:
+		return "ICMP"
 	default:
 		return "OTHER"
+	}
+}
+
+type Direction uint8
+
+const (
+	DirIngress Direction = iota
+	DirEgress
+	DirUnknown
+)
+
+func (d Direction) String() string {
+	switch d {
+	case DirIngress:
+		return "INGRESS"
+	case DirEgress:
+		return "EGRESS"
+	default:
+		return "UNKNOWN"
+	}
+}
+
+func ParseDirection(v uint8) Direction {
+	switch Direction(v) {
+	case DirIngress, DirEgress:
+		return Direction(v)
+	default:
+		return DirUnknown
 	}
 }
 
@@ -79,6 +104,13 @@ func ParseIP(k Ip_Key) string {
 		return net.IP(k.Address[:4]).String()
 	}
 	return net.IP(k.Address[:16]).String()
+}
+
+func ParseRawIP(raw [16]uint8, version uint8) string {
+	if version == 4 {
+		return net.IP(raw[:4]).String()
+	}
+	return net.IP(raw[:16]).String()
 }
 
 type IpEntry struct {

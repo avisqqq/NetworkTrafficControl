@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"encoding/json"
 	"net/http"
 	"sync"
 	"time"
@@ -28,9 +29,20 @@ func (s *SSE) Broadcast(b []byte) {
 	}
 }
 
+func (s *SSE) BroadcastJSON(v any) error {
+	b, err := json.Marshal(v)
+	if err != nil {
+		return err
+	}
+	s.Broadcast(b)
+	return nil
+}
+
 func (s *SSE) Handler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/event-stream")
 	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Connection", "keep-alive")
+	w.Header().Set("X-Accel-Buffering", "no")
 
 	flusher, ok := w.(http.Flusher)
 	if !ok {
@@ -58,7 +70,10 @@ func (s *SSE) Handler(w http.ResponseWriter, r *http.Request) {
 		select {
 		case <-r.Context().Done():
 			return
-		case b := <-ch:
+		case b, ok := <-ch:
+			if !ok {
+				return
+			}
 			w.Write([]byte("data: "))
 			w.Write(b)
 			w.Write([]byte("\n\n"))

@@ -1,12 +1,12 @@
 # NetworkTrafficControl
 
-NetworkTrafficControl is a Linux XDP/eBPF traffic monitor and controller. It attaches an XDP program to a network interface, streams packet events to a Go HTTP server, and exposes a web UI plus API endpoints for managing blacklist and whitelist IP maps.
+NetworkTrafficControl is a Linux TC/eBPF traffic monitor and controller. It attaches TC ingress and egress programs to a network interface, streams packet events to a Go HTTP server, and exposes a web UI plus API endpoints for managing blacklist and whitelist IP maps.
 
 ## Features
 
-- XDP packet inspection for IPv4 and IPv6 traffic.
+- TC ingress and egress packet inspection for IPv4 and IPv6 traffic on the same interface.
 - Blacklist support for dropping packets by source IP.
-- Whitelist support for allowing traffic while marking events as skipped.
+- Whitelist support for allowing traffic without emitting packet events.
 - SSH traffic bypass on TCP port 22.
 - Ring buffer event stream from eBPF to user space.
 - Browser UI served from `client/web`.
@@ -24,7 +24,7 @@ NetworkTrafficControl is a Linux XDP/eBPF traffic monitor and controller. It att
 ├── deploy.env.example      # Template for deploy.env
 ├── config.yaml             # Runtime configuration
 ├── eBPF/
-│   └── xdp_ring.bpf.c      # XDP/eBPF program
+│   └── tc_ring.bpf.c       # TC/eBPF program
 └── client/
     ├── ntc/main.go          # Go entrypoint
     ├── httpapi/             # HTTP handlers and SSE endpoint
@@ -49,7 +49,7 @@ server:
 
 network:
   interfaces:
-    - wlan0  # interface to attach XDP to
+    - wlan0  # interface to attach TC ingress/egress programs to
 
 persistence:
   path: ./data/lists.json  # path to blacklist/whitelist JSON file
@@ -166,8 +166,13 @@ Example event payload:
 {
   "time": "12:34:56.789",
   "seq": 42,
+  "iface": "wlan0",
+  "ifindex": 3,
+  "direction": "INGRESS",
   "src": "192.168.0.10",
+  "src_port": 51544,
   "dst": "1.1.1.1",
+  "dst_port": 443,
   "proto": "TCP",
   "action": "PASS"
 }
@@ -179,7 +184,6 @@ Possible actions:
 |---|---|
 | `PASS` | Packet passed normally |
 | `DROP` | Packet matched blacklist and was dropped |
-| `SKIP` | Packet matched whitelist and was passed |
 | `SSH` | TCP port 22 — bypassed |
 
 ### Blacklist
@@ -217,4 +221,5 @@ curl http://localhost:8086/whitelist
 - Blacklist and whitelist are persisted to JSON and restored on restart.
 - Both lists support IPv4 and IPv6 addresses.
 - eBPF maps allow up to 1024 entries per list.
-- The server must be run from the directory containing `web/` and `xdp_ring.bpf.o` (handled automatically by `rpi-install-service`).
+- The server must be run from the directory containing `web/` and `tc_ring.bpf.o` (handled automatically by `rpi-install-service`).
+- TCX attachment requires a Linux kernel with TCX support, typically Linux 6.6 or newer.

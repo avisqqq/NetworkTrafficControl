@@ -4,7 +4,7 @@ server:
 
 network:
   interfaces:
-    - wlan0  # interfaces to attach XDP to
+    - wlan0  # interface to attach TC ingress/egress programs to
 
 # Future sections (uncomment when features are implemented):
 

@@ -17,6 +17,11 @@ func ReadEvents(ctx context.Context, rd *ringbuf.Reader) <-chan model.Event {
 		defer close(out)
 		defer rd.Close()
 
+		go func() {
+			<-ctx.Done()
+			rd.Close()
+		}()
+
 		for {
 			select {
 			case <-ctx.Done():
@@ -38,7 +43,11 @@ func ReadEvents(ctx context.Context, rd *ringbuf.Reader) <-chan model.Event {
 				continue
 			}
 
-			out <- e
+			select {
+			case out <- e:
+			case <-ctx.Done():
+				return
+			}
 		}
 	}()
 

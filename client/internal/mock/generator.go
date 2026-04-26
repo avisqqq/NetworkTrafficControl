@@ -64,7 +64,10 @@ func GenerateEvents(ctx context.Context, mgr *Manager) <-chan model.Event {
 					count = 20
 				}
 				for i := 0; i < count; i++ {
-					e := newEvent(rng, mgr, seq.Add(1))
+					e, ok := newEvent(rng, mgr, seq.Add(1))
+					if !ok {
+						continue
+					}
 					select {
 					case out <- e:
 					default:
@@ -77,8 +80,12 @@ func GenerateEvents(ctx context.Context, mgr *Manager) <-chan model.Event {
 	return out
 }
 
-func newEvent(rng *rand.Rand, mgr *Manager, seq uint64) model.Event {
+func newEvent(rng *rand.Rand, mgr *Manager, seq uint64) (model.Event, bool) {
 	useIPv6 := rng.Intn(5) == 0
+	direction := uint8(model.DirIngress)
+	if rng.Intn(2) == 0 {
+		direction = uint8(model.DirEgress)
+	}
 
 	var src, dst [16]byte
 	var ipVersion uint8
@@ -99,26 +106,36 @@ func newEvent(rng *rand.Rand, mgr *Manager, seq uint64) model.Event {
 	}
 
 	proto := protos[rng.Intn(len(protos))]
+	var srcPort uint16
+	var dstPort uint16
+	if proto == 6 || proto == 17 {
+		srcPort = uint16(1024 + rng.Intn(64511))
+		dstPort = uint16([]int{22, 53, 80, 123, 443, 8080}[rng.Intn(6)])
+	}
 
 	var action uint8
 	switch {
-	case mgr.IsBlacklisted(srcStr):
+	case mgr.IsBlacklisted(srcStr) || mgr.IsBlacklisted(dstStr):
 		action = uint8(model.ActDrop)
-	case mgr.IsWhitelisted(srcStr):
-		action = uint8(model.ActSkip)
-	case proto == 6 && rng.Intn(30) == 0:
+	case mgr.IsWhitelisted(srcStr) || mgr.IsWhitelisted(dstStr):
+		return model.Event{}, false
+	case proto == 6 && (srcPort == 22 || dstPort == 22):
 		action = uint8(model.ActSSHBypass)
 	default:
 		action = uint8(model.ActPass)
 	}
 
 	return model.Event{
-		Ts:         uint64(time.Now().UnixNano()),
-		Seq:        seq,
-		Src:        src,
-		Dst:        dst,
-		Proto:      proto,
-		Action:     action,
-		Ip_Version: ipVersion,
-	}
+		Ts:        uint64(time.Now().UnixNano()),
+		Seq:       seq,
+		Ifindex:   0,
+		SrcPort:   srcPort,
+		DstPort:   dstPort,
+		Src:       src,
+		Dst:       dst,
+		Proto:     proto,
+		Action:    action,
+		IPVersion: ipVersion,
+		Direction: direction,
+	}, true
 }

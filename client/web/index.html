@@ -1,10 +1,10 @@
-<!doctype <html>
+<!doctype html>
 <html>
 
 <head>
 	<meta charset="utf-8" />
-	<meta name="viewport" content="width=device-width" , initial-scale=1" />
-	<title>XDP Events</title>
+	<meta name="viewport" content="width=device-width, initial-scale=1" />
+	<title>Network Traffic Control</title>
 	<link rel="stylesheet" href="./style.css" />
 </head>
 
@@ -12,8 +12,8 @@
 	<header class="top">
 		<div class="container row">
 			<div class="brand">
-				<div class="title">XDP Event</div>
-				<div class="title">SSE steam: /events</div>
+				<div class="title">Network Traffic Control</div>
+				<div class="subtitle">TC ingress and egress packet stream</div>
 			</div>
 
 			<div class="spacer"></div>
@@ -21,7 +21,7 @@
 			<div id="status" class="pill">Connecting...</div>
 		</div>
 		<div class="container toolbar row">
-			<input id="filter" class="input" placeholder="Filter (ip / proto / seq)" />
+			<input id="filter" class="input" placeholder="Filter by IP, port, protocol, action, direction, or sequence" />
 
 			<button id="toggle" class="btn"> Pause</button>
 			<button id="clear" class="btn btn-ghost">Clear</button>
@@ -30,7 +30,7 @@
 
 			<label class="meta row" style="gap:8px">
 				<span>Max</span>
-				<input id="cap" class="input input-small" value="300" />
+				<input id="cap" class="input input-small" value="300" inputmode="numeric" />
 			</label>
 
 			<div class="meta">
@@ -44,14 +44,13 @@
 			<div class="card">
 				<div class="row">
 					<select id="listType" class="input">
-						<option value="black">BlackList</option>
-						<option value="white">WhiteList</option>
+						<option value="black">Blacklist</option>
+						<option value="white">Whitelist</option>
 					</select>
 				</div>
 
 				<div class="row" style="margin-top:10px">
-					<input id="ipInput" class="input" placeholder="IPv4 (e.g. 1.2.3.4)" required
-						pattern="\d+\.\d+\.\d+\.\d+" />
+					<input id="ipInput" class="input" placeholder="IPv4 or IPv6 address" required />
 				</div>
 
 				<div class="row" style="margin-top:10px">
@@ -60,22 +59,26 @@
 					<button id="refreshBtn" class="btn btn-ghost">Refresh</button>
 				</div>
 
-				<div class="card" style="margin-top:10px">
-					<div class="meta">Entires</div>
+				<div class="list-panel" style="margin-top:10px">
+					<div class="meta">Entries</div>
 					<ul id="listEntries" class="list"></ul>
 				</div>
 			</div>
 		</aside>
-		<div class="card" style="flex:1">
+		<div class="events-panel">
 			<table class="table">
 				<thead>
 					<tr>
-						<th class="right"> seq</th>
+						<th class="right">seq</th>
+						<th>iface</th>
+						<th>dir</th>
 						<th>proto</th>
 						<th>Action</th>
 						<th>src</th>
+						<th class="right">s-port</th>
 						<th>dst</th>
-						<th class="right"> age</th>
+						<th class="right">d-port</th>
+						<th class="right">time</th>
 					</tr>
 				</thead>
 				<tbody id="rows"></tbody>

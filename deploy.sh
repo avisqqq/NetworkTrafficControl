@@ -105,7 +105,7 @@ if [ "$TARGET" = "rpi-build" ]; then
         cd ${RPI_DIR}/eBPF &&
         clang -O2 -g -target bpf -D__TARGET_ARCH_arm64 \
           -I/usr/include/aarch64-linux-gnu \
-          -c xdp_ring.bpf.c -o xdp_ring.bpf.o
+          -c tc_ring.bpf.c -o tc_ring.bpf.o
     "
 
     echo "[*] Building Go on RPi..."
@@ -113,7 +113,7 @@ if [ "$TARGET" = "rpi-build" ]; then
         cd ${RPI_DIR}/client &&
         /usr/local/go/bin/go build -o ${RPI_DIR}/ntc ./ntc &&
         chmod +x ${RPI_DIR}/ntc &&
-        cp ${RPI_DIR}/eBPF/xdp_ring.bpf.o ${RPI_DIR}/xdp_ring.bpf.o &&
+        cp ${RPI_DIR}/eBPF/tc_ring.bpf.o ${RPI_DIR}/tc_ring.bpf.o &&
         cp -r ${RPI_DIR}/client/web ${RPI_DIR}/web
     "
 
@@ -127,7 +127,7 @@ fi
 echo "[*] Compiling eBPF..."
 cd eBPF
 clang -O2 -g -target bpf -D__TARGET_ARCH_${BPF_ARCH} \
-  -c xdp_ring.bpf.c -o xdp_ring.bpf.o
+  -c tc_ring.bpf.c -o tc_ring.bpf.o
 cd ..
 
 # --- Compile Go ---
@@ -147,11 +147,11 @@ echo "[*] Copying artifacts..."
 
 if [ "$TARGET" = "rpi" ]; then
     ssh "${RPI_USER}@${RPI_HOST}" "mkdir -p ${RPI_DIR}"
-    scp -r client/web eBPF/xdp_ring.bpf.o client/ntc_bin config.yaml "$DEST"
+    scp -r client/web eBPF/tc_ring.bpf.o client/ntc_bin config.yaml "$DEST"
     ssh "${RPI_USER}@${RPI_HOST}" "mv ${RPI_DIR}/ntc_bin ${RPI_DIR}/ntc && chmod +x ${RPI_DIR}/ntc"
 else
     cp -r client/web "$DEST"
-    cp eBPF/xdp_ring.bpf.o "$DEST"
+    cp eBPF/tc_ring.bpf.o "$DEST"
     cp client/ntc_bin "${DEST}ntc"
     cp config.yaml "$DEST"
 fi

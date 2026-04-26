@@ -29,13 +29,15 @@ func New(tz string) *Clock {
 }
 
 func (c *Clock) FromTs(ts uint64) time.Time {
+	if ts >= uint64(time.Date(2000, 1, 1, 0, 0, 0, 0, time.UTC).UnixNano()) {
+		return time.Unix(0, int64(ts)).In(c.loc)
+	}
 	return c.boot.Add(time.Duration(ts)).In(c.loc)
 }
 
 // bootTime returns the system boot time derived from /proc/uptime.
 // On systems where /proc/uptime is unavailable (e.g. macOS in mock mode),
-// it falls back to the Unix epoch so that Unix-nanosecond timestamps
-// produced by the mock generator are interpreted correctly.
+// it falls back to the Unix epoch.
 func bootTime() time.Time {
 	data, err := os.ReadFile("/proc/uptime")
 	if err != nil {

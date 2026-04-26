@@ -12,12 +12,15 @@ import (
 )
 
 type Manager struct {
-	Coll      *ebpf.Collection
-	Link      link.Link
-	Events    *ringbuf.Reader
-	Blacklist *ebpf.Map
-	Whitelist *ebpf.Map
-	store     *persist.Store
+	Coll        *ebpf.Collection
+	IngressLink link.Link
+	EgressLink  link.Link
+	Events      *ringbuf.Reader
+	Blacklist   *ebpf.Map
+	Whitelist   *ebpf.Map
+	Interface   string
+	Ifindex     int
+	store       *persist.Store
 }
 
 func Load(objPath, ifaceName string, store *persist.Store) (*Manager, error) {
@@ -37,31 +40,56 @@ func Load(objPath, ifaceName string, store *persist.Store) (*Manager, error) {
 		return nil, err
 	}
 
-	prog := coll.Programs["xdp_basic"]
+	ingress, ok := coll.Programs["tc_ingress"]
+	if !ok {
+		coll.Close()
+		return nil, errMissingProgram("tc_ingress")
+	}
+	egress, ok := coll.Programs["tc_egress"]
+	if !ok {
+		coll.Close()
+		return nil, errMissingProgram("tc_egress")
+	}
 
-	lnk, err := link.AttachXDP(link.XDPOptions{
-		Program:   prog,
+	ingressLink, err := link.AttachTCX(link.TCXOptions{
+		Program:   ingress,
 		Interface: iface.Index,
+		Attach:    ebpf.AttachTCXIngress,
 	})
 	if err != nil {
 		coll.Close()
 		return nil, err
 	}
 
+	egressLink, err := link.AttachTCX(link.TCXOptions{
+		Program:   egress,
+		Interface: iface.Index,
+		Attach:    ebpf.AttachTCXEgress,
+	})
+	if err != nil {
+		ingressLink.Close()
+		coll.Close()
+		return nil, err
+	}
+
 	rd, err := ringbuf.NewReader(coll.Maps["events"])
 	if err != nil {
-		lnk.Close()
+		egressLink.Close()
+		ingressLink.Close()
 		coll.Close()
 		return nil, err
 	}
 
 	m := &Manager{
-		Coll:      coll,
-		Link:      lnk,
-		Events:    rd,
-		Blacklist: coll.Maps["blacklist"],
-		Whitelist: coll.Maps["whitelist"],
-		store:     store,
+		Coll:        coll,
+		IngressLink: ingressLink,
+		EgressLink:  egressLink,
+		Events:      rd,
+		Blacklist:   coll.Maps["blacklist"],
+		Whitelist:   coll.Maps["whitelist"],
+		Interface:   iface.Name,
+		Ifindex:     iface.Index,
+		store:       store,
 	}
 	if store != nil {
 		m.loadFromStore()
@@ -116,6 +144,13 @@ func (m *Manager) save() {
 
 func (m *Manager) Close() {
 	m.Events.Close()
-	m.Link.Close()
+	m.EgressLink.Close()
+	m.IngressLink.Close()
 	m.Coll.Close()
+}
+
+type errMissingProgram string
+
+func (e errMissingProgram) Error() string {
+	return "missing eBPF program: " + string(e)
 }

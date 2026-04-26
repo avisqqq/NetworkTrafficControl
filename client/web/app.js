@@ -19,14 +19,15 @@ function currentList() {
 let paused = false;
 let cap = 300;
 let shown = 0;
-const t0 = performance.now();
+const events = [];
 
 function baseUrl() {
 	return currentList() === 'black' ? '/blacklist' : '/whitelist';
 }
 
 async function loadList() {
-	const res = await fetch((baseUrl()));
+	const res = await fetch(baseUrl());
+	if (!res.ok) return;
 	const data = await res.json();
 	renderList(data);
 }
@@ -42,7 +43,7 @@ addBtn.onclick = async () => {
 	});
 
 	ipInputEl.value = '';
-	loadList();
+	await loadList();
 
 }
 
@@ -55,10 +56,10 @@ removeBtn.onclick = async () => {
 	});
 
 	ipInputEl.value = '';
-	loadList();
+	await loadList();
 }
-refreshBtn.onclick = loadList();
-listTypeEl.onchange = loadList();
+refreshBtn.onclick = loadList;
+listTypeEl.onchange = loadList;
 
 function renderList(data) {
 	if (data == null) {
@@ -68,7 +69,10 @@ function renderList(data) {
 
 	for (const ip of data) {
 		const li = document.createElement('li');
-		li.textContent = ip.ip;
+		const button = document.createElement('button');
+		button.type = 'button';
+		button.textContent = ip.ip;
+		li.appendChild(button);
 
 		li.onclick = () => {
 			ipInputEl.value = ip.ip;
@@ -89,14 +93,31 @@ function matchesFilter(e) {
 	if (!q) return true;
 	return (
 		String(e.seq).includes(q) ||
+		String(e.iface).toLowerCase().includes(q) ||
+		String(e.direction).toLowerCase().includes(q) ||
 		String(e.proto).includes(q) ||
+		String(e.action).toLowerCase().includes(q) ||
 		(e.src || '').toLowerCase().includes(q) ||
-		(e.dst || '').toLowerCase().includes(q)
+		(e.dst || '').toLowerCase().includes(q) ||
+		String(e.src_port || '').includes(q) ||
+		String(e.dst_port || '').includes(q)
 	);
 }
 
-function addRow(e) {
-	if (paused) return;
+function renderRows() {
+	rowsEl.innerHTML = '';
+	shown = 0;
+
+	for (let i = events.length - 1; i >= 0; i--) {
+		const e = events[i];
+		if (matchesFilter(e)) appendRow(e);
+		if (shown >= cap) break;
+	}
+
+	countEl.textContent = shown;
+}
+
+function appendRow(e) {
 	if (!matchesFilter(e)) return;
 
 	const protoCls = e.proto.toLowerCase();
@@ -104,17 +125,23 @@ function addRow(e) {
 
 	const actionCls = e.action.toLowerCase();
 	const actionLabel = e.action;
+	const directionCls = e.direction.toLowerCase();
+	const srcPort = e.src_port ? e.src_port : '-';
+	const dstPort = e.dst_port ? e.dst_port : '-';
 
-	const ageMs = Math.max(0, Math.round(performance.now() - t0));
 	const tr = document.createElement('tr');
 	tr.innerHTML =
 		`
 		<td class="right"> ${e.seq}</td>
+		<td>${e.iface || e.ifindex || ''}</td>
+		<td><span class="direction ${directionCls}">${e.direction}</span></td>
 		<td><span class="proto ${protoCls}">${protoLabel}</span></td>
 		<td><span class="action ${actionCls}">${actionLabel}</span></td>
 		<td>${e.src}</td>
+		<td class="right">${srcPort}</td>
 		<td>${e.dst}</td>
-		<td class="right">${e.time}ms</td>
+		<td class="right">${dstPort}</td>
+		<td class="right">${e.time}</td>
 	`;
 
 	rowsEl.prepend(tr);
@@ -122,6 +149,13 @@ function addRow(e) {
 	countEl.textContent = shown;
 
 	while (rowsEl.children.length > cap) rowsEl.removeChild(rowsEl.lastChild);
+}
+
+function addRow(e) {
+	if (paused) return;
+	events.unshift(e);
+	while (events.length > cap * 3) events.pop();
+	renderRows();
 }
 toggleBtn.addEventListener('click', () => {
 	paused = !paused;
@@ -131,6 +165,7 @@ toggleBtn.addEventListener('click', () => {
 
 clearBtn.addEventListener('click', () => {
 	rowsEl.innerHTML = '';
+	events.length = 0;
 	shown = 0;
 	countEl.textContent = '0';
 });
@@ -142,13 +177,11 @@ capEl.addEventListener('change', () => {
 		return
 	}
 	cap = n;
-	while (rowsEl.children.length > cap) rowsEl.removeChild(rowsEl.lastChild);
+	renderRows();
 });
 
 filterEl.addEventListener('input', () => {
-	rowsEl.innerHTML = '';
-	shown = 0;
-	countEl.textContent = '0';
+	renderRows();
 })
 
 const es = new EventSource(`${window.location.origin}/events`);
@@ -157,4 +190,3 @@ es.onerror = () => setStatus(false)
 es.onmessage = (msg) => {
 	try { addRow(JSON.parse(msg.data)); } catch (_) { }
 };
-
