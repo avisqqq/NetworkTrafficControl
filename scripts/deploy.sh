@@ -169,7 +169,7 @@ if [ "$TARGET" = "rpi-build" ]; then
         cd ${RPI_DIR}/src &&
         /usr/local/go/bin/go build -o ${RPI_DIR}/ntc ./cmd/ntc &&
         chmod +x ${RPI_DIR}/ntc &&
-        cp ${RPI_DIR}/src/internal/bpf/tc_filter.bpf.o ${RPI_DIR}/tc_filter.bpf.o &&
+        cp ${RPI_DIR}/src/internal/bpf/c/tc_filter.bpf.o ${RPI_DIR}/tc_filter.bpf.o &&
         rm -rf ${RPI_DIR}/dist &&
         cp -r ${RPI_DIR}/src/dist ${RPI_DIR}/dist
     "
@@ -203,11 +203,11 @@ echo "[*] Copying artifacts..."
 
 if [ "$TARGET" = "rpi" ]; then
     ssh "${RPI_USER}@${RPI_HOST}" "mkdir -p ${RPI_DIR}"
-    scp -r dist internal/bpf/tc_filter.bpf.o ntc_bin config.yaml "$DEST"
+    scp -r dist internal/bpf/c/tc_filter.bpf.o ntc_bin config.yaml "$DEST"
     ssh "${RPI_USER}@${RPI_HOST}" "mv ${RPI_DIR}/ntc_bin ${RPI_DIR}/ntc && chmod +x ${RPI_DIR}/ntc"
 else
     cp -r dist execute/
-    cp internal/bpf/tc_filter.bpf.o execute/
+    cp internal/bpf/c/tc_filter.bpf.o execute/
     cp ntc_bin execute/ntc
     cp config.yaml execute/
 fi
