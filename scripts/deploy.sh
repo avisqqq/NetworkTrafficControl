@@ -111,10 +111,8 @@ fi
 # ── rpi-install-stack ─────────────────────────────────────────────────────────
 if [ "$TARGET" = "rpi-install-stack" ]; then
     echo "[*] Copying monitoring stack to RPi..."
-    ssh "${RPI_USER}@${RPI_HOST}" "mkdir -p ${RPI_DIR}/monitoring/grafana ${RPI_DIR}/monitoring/victoria"
-
-    rsync -az monitoring/grafana/ "${RPI_USER}@${RPI_HOST}:${RPI_DIR}/monitoring/grafana/"
-    scp monitoring/docker-compose.yml "${RPI_USER}@${RPI_HOST}:${RPI_DIR}/monitoring/"
+    ssh "${RPI_USER}@${RPI_HOST}" "mkdir -p ${RPI_DIR}/monitoring"
+    rsync -az monitoring/ "${RPI_USER}@${RPI_HOST}:${RPI_DIR}/monitoring/"
 
     echo "[*] Generating scrape config for RPi (localhost:${NTC_PORT})..."
     cat > /tmp/ntc-scrape.yaml << EOF
@@ -154,14 +152,13 @@ if [ "$TARGET" = "rpi-build" ]; then
     ssh "${RPI_USER}@${RPI_HOST}" "mkdir -p ${RPI_DIR}/src"
     rsync -az --delete \
         --exclude='node_modules/' \
-        --exclude='dist/' \
         --exclude='.git/' \
         --exclude='execute/' \
         . "${RPI_USER}@${RPI_HOST}:${RPI_DIR}/src/"
 
     echo "[*] Building eBPF on RPi..."
     ssh "${RPI_USER}@${RPI_HOST}" "
-        cd ${RPI_DIR}/src/ebpf &&
+        cd ${RPI_DIR}/src/internal/bpf &&
         clang -O2 -g -target bpf -D__TARGET_ARCH_arm64 \
           -I/usr/include/aarch64-linux-gnu \
           -c tc_filter.bpf.c -o tc_filter.bpf.o
@@ -172,7 +169,7 @@ if [ "$TARGET" = "rpi-build" ]; then
         cd ${RPI_DIR}/src &&
         /usr/local/go/bin/go build -o ${RPI_DIR}/ntc ./cmd/ntc &&
         chmod +x ${RPI_DIR}/ntc &&
-        cp ${RPI_DIR}/src/ebpf/tc_filter.bpf.o ${RPI_DIR}/tc_filter.bpf.o &&
+        cp ${RPI_DIR}/src/internal/bpf/tc_filter.bpf.o ${RPI_DIR}/tc_filter.bpf.o &&
         rm -rf ${RPI_DIR}/dist &&
         cp -r ${RPI_DIR}/src/dist ${RPI_DIR}/dist
     "
@@ -189,10 +186,10 @@ echo "[*] Building frontend (Svelte)..."
 cd web && npm run build && cd ..
 
 echo "[*] Compiling eBPF..."
-cd ebpf
+cd internal/bpf
 clang -O2 -g -target bpf -D__TARGET_ARCH_${BPF_ARCH} \
   -c tc_filter.bpf.c -o tc_filter.bpf.o
-cd ..
+cd ../..
 
 echo "[*] Compiling Go..."
 GOOS=linux GOARCH=$GOARCH go build -o ntc_bin ./cmd/ntc
@@ -206,11 +203,11 @@ echo "[*] Copying artifacts..."
 
 if [ "$TARGET" = "rpi" ]; then
     ssh "${RPI_USER}@${RPI_HOST}" "mkdir -p ${RPI_DIR}"
-    scp -r dist ebpf/tc_filter.bpf.o ntc_bin config.yaml "$DEST"
+    scp -r dist internal/bpf/tc_filter.bpf.o ntc_bin config.yaml "$DEST"
     ssh "${RPI_USER}@${RPI_HOST}" "mv ${RPI_DIR}/ntc_bin ${RPI_DIR}/ntc && chmod +x ${RPI_DIR}/ntc"
 else
     cp -r dist execute/
-    cp ebpf/tc_filter.bpf.o execute/
+    cp internal/bpf/tc_filter.bpf.o execute/
     cp ntc_bin execute/ntc
     cp config.yaml execute/
 fi
