@@ -17,10 +17,11 @@ type ListManager interface {
 	GetFromWhiteList() ([]model.IPEntry, error)
 }
 
-func NewServer(addr, webDir string, mgr ListManager, sse *SSE, ipStats *stats.IPTracker) *http.Server {
+func NewServer(addr, webDir, iface, path string, mgr ListManager, sse *SSE, ipStats *stats.IPTracker) *http.Server {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/events", sse.Handler)
+	mux.HandleFunc("/network/devices", networkDevicesHandler(iface, path))
 	mux.HandleFunc("/metrics", metricsHandler(ipStats))
 	mux.HandleFunc("/blacklist", listHandler(mgr.AddToBlackList, mgr.RemoveFromBlackList, mgr.GetFromBlackList))
 	mux.HandleFunc("/whitelist", listHandler(mgr.AddToWhiteList, mgr.RemoveFromWhiteList, mgr.GetFromWhiteList))

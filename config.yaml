@@ -5,6 +5,9 @@ server:
 network:
   interfaces:
     - wlan0  # interfaces to attach XDP to
+  cidrs:
+    - 192.168.50.0/24
+  lease_file: /var/lib/misc/dnsmasq.leases
 
 # Future sections (uncomment when features are implemented):
 

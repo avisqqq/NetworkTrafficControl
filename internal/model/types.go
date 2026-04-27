@@ -131,6 +131,12 @@ func BuildIPKey(ipStr string) (IPKey, error) {
 	copy(key.Address[:], ip.To16())
 	return key, nil
 }
+func IpVersion(ip net.IP) uint8 {
+	if ip.To4() != nil {
+		return 4
+	}
+	return 6
+}
 
 type IPEntry struct {
 	IP      string `json:"ip"`

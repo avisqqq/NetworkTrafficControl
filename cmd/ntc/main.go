@@ -43,6 +43,8 @@ func main() {
 	var mgr api.ListManager
 	var events <-chan model.Event
 
+	iface := cfg.Network.Interfaces[0]
+	pathLeases := cfg.Network.LeaseFile
 	store, err := persist.New(cfg.Persistence.Path)
 	if err != nil {
 		log.Fatalf("persist: %v", err)
@@ -54,7 +56,6 @@ func main() {
 		mgr = m
 		events = mock.GenerateEvents(ctx, m)
 	} else {
-		iface := cfg.Network.Interfaces[0]
 		m, err := bpf.Load("tc_filter.bpf.o", iface, store)
 		if err != nil {
 			log.Fatal(err)
@@ -64,9 +65,9 @@ func main() {
 		events = m.ReadEvents(ctx)
 	}
 
-	sse      := api.NewSSE()
-	tracker  := flow.NewTracker()
-	ipStats  := stats.NewIPTracker()
+	sse := api.NewSSE()
+	tracker := flow.NewTracker()
+	ipStats := stats.NewIPTracker()
 
 	// Consume raw packets: update flow table + IP stats, forward to SSE for live view.
 	go func() {
@@ -122,7 +123,7 @@ func main() {
 	}()
 
 	addr := cfg.ServerAddr()
-	srv := api.NewServer(addr, "./dist", mgr, sse, ipStats)
+	srv := api.NewServer(addr, "./dist", iface, pathLeases, mgr, sse, ipStats)
 
 	go func() {
 		log.Printf("HTTP listening on %s", addr)

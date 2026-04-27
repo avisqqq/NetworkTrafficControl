@@ -24,6 +24,8 @@ type ServerConfig struct {
 
 type NetworkConfig struct {
 	Interfaces []string `yaml:"interfaces"`
+	CIDRs      []string `yaml:"cidrs"`
+	LeaseFile  string   `yaml:"lease_file"`
 }
 
 func (c *Config) ServerAddr() string {
@@ -37,6 +39,7 @@ var defaults = Config{
 	},
 	Network: NetworkConfig{
 		Interfaces: []string{"wlan0"},
+		LeaseFile:  "/var/lib/misc/dnsmasq.leases",
 	},
 	Persistence: PersistenceConfig{
 		Path: "./data/lists.json",
