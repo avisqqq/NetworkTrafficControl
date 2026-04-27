@@ -112,6 +112,8 @@ docker compose -f monitoring/docker-compose.yml up -d
 
 Scrape target is pre-configured to `host.docker.internal:8086`.
 
+Monitoring architecture, Grafana panels, labels, and metric meanings are documented in [monitoring/README.md](monitoring/README.md).
+
 ### Rebuild frontend
 
 ```sh
