@@ -1,0 +1,35 @@
+services:
+
+  victoriametrics:
+    image: victoriametrics/victoria-metrics:latest
+    container_name: ntc-victoria
+    ports:
+      - "8428:8428"
+    volumes:
+      - victoria-data:/victoria-metrics-data
+      - ./victoria/scrape.yaml:/scrape.yaml:ro
+    command:
+      - --retentionPeriod=90d
+      - --promscrape.config=/scrape.yaml
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    restart: unless-stopped
+
+  grafana:
+    image: grafana/grafana:latest
+    container_name: ntc-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana-data:/var/lib/grafana
+      - ./grafana/provisioning:/etc/grafana/provisioning
+    depends_on:
+      - victoriametrics
+    restart: unless-stopped
+
+volumes:
+  victoria-data:
+  grafana-data:

@@ -1,79 +1,123 @@
 # NetworkTrafficControl
 
-NetworkTrafficControl is a Linux XDP/eBPF traffic monitor and controller. It attaches an XDP program to a network interface, streams packet events to a Go HTTP server, and exposes a web UI plus API endpoints for managing blacklist and whitelist IP maps.
+NTC is a Linux TC eBPF network traffic monitor and controller designed for Raspberry Pi. It attaches TC programs to a network interface for full ingress and egress visibility, aggregates packets into flows, exposes Prometheus metrics, and ships a Svelte web UI for live event inspection and IP list management.
 
 ## Features
 
-- XDP packet inspection for IPv4 and IPv6 traffic.
-- Blacklist support for dropping packets by source IP.
-- Whitelist support for allowing traffic while marking events as skipped.
-- SSH traffic bypass on TCP port 22.
-- Ring buffer event stream from eBPF to user space.
-- Browser UI served from `client/web`.
-- HTTP API for event streaming and list management.
-- Blacklist and whitelist persisted to JSON file — survives restarts.
-- Mock mode (`--mock`) for local development without eBPF or Raspberry Pi.
-- YAML config file for port, timezone, interface, and persistence path.
+- **TC eBPF** — ingress + egress on all interface types including WiFi
+- **Flow tracking** — 5-tuple aggregation (src/dst IP, ports, proto); flows expire on idle timeout, TCP FIN/RST, or forced flush
+- **Per-IP sliding window** — 60s rolling stats: pkt/s, bytes/s, unique destination ports, SYN/ACK counts
+- **Prometheus `/metrics`** — broken down by protocol, direction, and firewall action; scraped by VictoriaMetrics
+- **Grafana dashboards** — Overview, Top Talkers, Security (port scan + SYN flood indicators)
+- **Svelte web UI** — live SSE event table with filtering, pause/resume, blacklist/whitelist management
+- **Blacklist / Whitelist** — eBPF maps with up to 1024 entries, persisted to JSON across restarts
+- **SSH bypass** — TCP port 22 is never dropped regardless of list state
+- **Mock mode** (`--mock`) — synthetic traffic generator for local development without eBPF or RPi
+- **YAML config** — port, timezone, interface, persistence path
+
+## Architecture
+
+```
+┌─────────────────────────────────────┐
+│  TC eBPF (kernel)                   │
+│  ingress + egress                   │
+│  src/dst IP, ports, tcp_flags,      │
+│  pkt_size, direction, action        │
+└─────────────────┬───────────────────┘
+                  │ ring buffer
+                  ▼
+┌─────────────────────────────────────┐
+│  Go userspace                       │
+│                                     │
+│  Flow Tracker   — 5-tuple flows     │
+│  IP Stats       — 60s sliding win   │
+│  SSE Broadcast  — live event stream │
+│  /metrics       — Prometheus format │
+└──────┬──────────────────┬───────────┘
+       │ scrape (10s)     │ SSE / HTTP
+       ▼                  ▼
+  VictoriaMetrics     Browser UI
+       │              (Svelte)
+       ▼
+    Grafana
+  (3 dashboards)
+```
 
 ## Repository Layout
 
-```text
+```
 .
-├── deploy.sh               # Build and deploy script (see targets below)
-├── deploy.env              # Local RPi connection config (gitignored, copy from deploy.env.example)
-├── deploy.env.example      # Template for deploy.env
-├── config.yaml             # Runtime configuration
-├── eBPF/
-│   └── xdp_ring.bpf.c      # XDP/eBPF program
-└── client/
-    ├── ntc/main.go          # Go entrypoint
-    ├── httpapi/             # HTTP handlers and SSE endpoint
-    ├── internal/
-    │   ├── bpf/             # eBPF loading, event parsing, map helpers
-    │   ├── clock/           # Timestamp conversion
-    │   ├── config/          # YAML config loader
-    │   ├── mock/            # Synthetic packet generator (mock mode)
-    │   ├── model/           # Shared types
-    │   └── persist/         # JSON persistence for blacklist/whitelist
-    └── web/                 # Static web UI
+├── cmd/ntc/main.go              # Go entrypoint
+├── internal/
+│   ├── api/                     # HTTP handlers, SSE, /metrics
+│   ├── bpf/                     # eBPF loader, event parsing, map helpers
+│   │   └── c/
+│   │       └── tc_filter.bpf.c  # TC eBPF program (ingress + egress)
+│   ├── clock/                   # Timestamp conversion
+│   ├── config/                  # YAML config loader
+│   ├── flow/                    # Flow tracker (5-tuple aggregation)
+│   ├── mock/                    # Synthetic packet generator
+│   ├── model/                   # Shared types (Event, OutEvent, IPKey…)
+│   ├── persist/                 # JSON persistence for blacklist/whitelist
+│   └── stats/                   # Per-IP sliding window + global counters
+├── web/                         # Svelte source (npm run build → dist/)
+├── dist/                        # Built frontend — served by Go (gitignored)
+├── monitoring/
+│   ├── docker-compose.yml       # VictoriaMetrics + Grafana stack
+│   ├── victoria/scrape.yaml     # Prometheus scrape config
+│   └── grafana/provisioning/    # Auto-provisioned datasource + dashboards
+├── scripts/deploy.sh            # Build and deploy script
+├── deploy.env                   # RPi connection config (gitignored)
+├── deploy.env.example           # Template for deploy.env
+└── config.yaml                  # Runtime config
 ```
 
 ## Configuration
 
-Edit `config.yaml` before running:
-
 ```yaml
 server:
   port: 8086
-  timezone: Europe/Warsaw  # IANA timezone, empty = UTC
+  timezone: Europe/Warsaw   # IANA timezone, empty = UTC
 
 network:
   interfaces:
-    - wlan0  # interface to attach XDP to
+    - wlan0                 # interface to attach TC to
 
 persistence:
-  path: ./data/lists.json  # path to blacklist/whitelist JSON file
+  path: ./data/lists.json
 ```
 
-## Local Development (mock mode, no RPi required)
+## Local Development
 
-Run with a synthetic packet generator — no eBPF or Linux required:
+Run with synthetic traffic generator — no eBPF or Linux required:
 
 ```sh
-cd /path/to/NetworkTrafficControl
-go run ./client/ntc --mock
+# Terminal 1 — Go backend
+go run ./cmd/ntc --mock
+
+# Terminal 2 — Svelte dev server with HMR (optional, for frontend changes)
+cd web && npm run dev
 ```
 
-Open the web UI at:
+Open `http://localhost:8086` (served by Go) or `http://localhost:5173` (Vite dev server).
 
-```
-http://localhost:8086
-```
-
-To use a custom config:
+### Monitoring stack (local)
 
 ```sh
-go run ./client/ntc --mock --config /path/to/config.yaml
+docker compose -f monitoring/docker-compose.yml up -d
+```
+
+- Grafana: `http://localhost:3000` (admin / admin)
+- VictoriaMetrics: `http://localhost:8428`
+
+Scrape target is pre-configured to `host.docker.internal:8086`.
+
+Monitoring architecture, Grafana panels, labels, and metric meanings are documented in [monitoring/README.md](monitoring/README.md).
+
+### Rebuild frontend
+
+```sh
+cd web && npm run build
 ```
 
 ## Raspberry Pi — First Time Setup
@@ -82,85 +126,93 @@ go run ./client/ntc --mock --config /path/to/config.yaml
 
 ```sh
 cp deploy.env.example deploy.env
-# Edit deploy.env with your RPi host, user, and directory
+# Edit deploy.env: RPI_HOST, RPI_USER, RPI_DIR
 ```
 
-**2. Set up SSH key (no password prompts):**
+**2. Set up SSH key:**
 
 ```sh
-ssh-keygen -t ed25519   # if you don't have a key yet
+ssh-keygen -t ed25519
 ssh-copy-id rpi@rpi.local
 ```
 
-**3. Install dependencies on RPi:**
+**3. Install dependencies (eBPF toolchain + Go + Docker):**
 
 ```sh
-./deploy.sh rpi-install-dependencies
+./scripts/deploy.sh rpi-install-dependencies
 ```
 
-This installs: `clang`, `llvm`, `linux-headers`, `libbpf-dev`, `libc6-dev`, and Go.
-
-**4. Build and deploy:**
+**4. Build and deploy NTC:**
 
 ```sh
-./deploy.sh rpi-build
+./scripts/deploy.sh rpi-build
 ```
 
-Copies sources to RPi and compiles eBPF + Go on the device.
-
-**5. Install systemd service:**
+**5. Install systemd service (auto-start on boot):**
 
 ```sh
-./deploy.sh rpi-install-service
+./scripts/deploy.sh rpi-install-service
 ```
 
-The service starts automatically on boot and restarts on failure.
+**6. Install monitoring stack (VictoriaMetrics + Grafana):**
+
+```sh
+./scripts/deploy.sh rpi-install-stack
+```
+
+URLs after deployment:
+- NTC web UI: `http://rpi.local:8086`
+- Grafana: `http://rpi.local:3000` (admin / admin)
+- VictoriaMetrics: `http://rpi.local:8428`
 
 ## Raspberry Pi — Managing the Service
 
 ```sh
+# Status
+ssh rpi@rpi.local 'sudo systemctl status ntc'
+
+# Start / stop / restart
 ssh rpi@rpi.local 'sudo systemctl start ntc'
 ssh rpi@rpi.local 'sudo systemctl stop ntc'
 ssh rpi@rpi.local 'sudo systemctl restart ntc'
-ssh rpi@rpi.local 'sudo journalctl -u ntc -f'   # live logs
-```
 
-Open the web UI at:
-
-```
-http://rpi.local:8086
+# Live logs
+ssh rpi@rpi.local 'sudo journalctl -u ntc -f'
 ```
 
 ## Subsequent Deploys
 
-After making changes, rebuild and redeploy:
+After making code changes:
 
 ```sh
-./deploy.sh rpi-build
+./scripts/deploy.sh rpi-build
 ssh rpi@rpi.local 'sudo systemctl restart ntc'
+```
+
+After changing monitoring config (Grafana dashboards, scrape config):
+
+```sh
+./scripts/deploy.sh rpi-install-stack
 ```
 
 ## deploy.sh Targets
 
 | Target | Description |
 |---|---|
-| `local` | Build eBPF and Go locally, copy to `execute/` |
-| `rpi` | Cross-compile on macOS, copy artifacts to RPi |
-| `rpi-build` | Copy sources to RPi, build eBPF and Go on device |
-| `rpi-install-dependencies` | Install all build dependencies on RPi |
-| `rpi-install-service` | Install and enable systemd service on RPi |
+| `local` | Build frontend + eBPF + Go locally, copy to `execute/` |
+| `rpi` | Cross-compile on macOS, scp artifacts to RPi |
+| `rpi-build` | Build frontend locally, rsync sources to RPi, build eBPF + Go on device |
+| `rpi-install-dependencies` | Install clang, llvm, linux-headers, Go, Docker on RPi |
+| `rpi-install-service` | Install and enable NTC systemd service on RPi |
+| `rpi-install-stack` | Copy and start VictoriaMetrics + Grafana via Docker Compose on RPi |
 
 ## API
 
-### Event Stream
-
-Streams packet events using Server-Sent Events:
+### Event Stream (SSE)
 
 ```sh
 curl http://localhost:8086/events
 ```
-
-Example event payload:
 
 ```json
 {
@@ -169,52 +221,54 @@ Example event payload:
   "src": "192.168.0.10",
   "dst": "1.1.1.1",
   "proto": "TCP",
-  "action": "PASS"
+  "action": "PASS",
+  "direction": "INGRESS"
 }
 ```
 
-Possible actions:
-
 | Action | Description |
 |---|---|
-| `PASS` | Packet passed normally |
-| `DROP` | Packet matched blacklist and was dropped |
-| `SKIP` | Packet matched whitelist and was passed |
-| `SSH` | TCP port 22 — bypassed |
+| `PASS` | Packet allowed normally |
+| `DROP` | Source/dest matched blacklist — packet dropped |
+| `SKIP` | Source/dest matched whitelist — packet passed |
+| `SSH` | TCP port 22 — always bypassed |
 
-### Blacklist
+### Metrics
+
+```sh
+curl http://localhost:8086/metrics
+```
+
+| Metric | Type | Description |
+|---|---|---|
+| `ntc_packets_per_second` | gauge | Total pkt/s (60s avg) |
+| `ntc_bytes_per_second` | gauge | Total bytes/s (60s avg) |
+| `ntc_active_ips` | gauge | Distinct source IPs in last 60s |
+| `ntc_active_flows` | gauge | Currently tracked flows |
+| `ntc_packets_total{proto,direction,action}` | counter | Packet counters by dimension |
+| `ntc_bytes_total{proto}` | counter | Byte counters by protocol |
+| `ntc_ip_packets_per_second{ip}` | gauge | Per-IP pkt/s (top 10) |
+| `ntc_ip_unique_dst_ports{ip}` | gauge | Unique ports per IP (port scan signal) |
+| `ntc_ip_syn_count{ip}` | gauge | SYN count per IP (SYN flood signal) |
+
+### Blacklist / Whitelist
 
 ```sh
 # Add
 curl -X POST http://localhost:8086/blacklist \
-  -H 'Content-Type: application/json' \
-  -d '{"ip":"192.168.0.50"}'
+  -H 'Content-Type: application/json' -d '{"ip":"1.2.3.4"}'
 
 # Remove
-curl -X DELETE 'http://localhost:8086/blacklist?ip=192.168.0.50'
+curl -X DELETE 'http://localhost:8086/blacklist?ip=1.2.3.4'
 
 # List
 curl http://localhost:8086/blacklist
 ```
 
-### Whitelist
-
-```sh
-# Add
-curl -X POST http://localhost:8086/whitelist \
-  -H 'Content-Type: application/json' \
-  -d '{"ip":"192.168.0.20"}'
-
-# Remove
-curl -X DELETE 'http://localhost:8086/whitelist?ip=192.168.0.20'
-
-# List
-curl http://localhost:8086/whitelist
-```
+Same endpoints for `/whitelist`. Both support IPv4 and IPv6.
 
 ## Notes
 
-- Blacklist and whitelist are persisted to JSON and restored on restart.
-- Both lists support IPv4 and IPv6 addresses.
-- eBPF maps allow up to 1024 entries per list.
-- The server must be run from the directory containing `web/` and `xdp_ring.bpf.o` (handled automatically by `rpi-install-service`).
+- eBPF maps hold up to 1024 entries per list.
+- The server must run as root (or with `CAP_NET_ADMIN`) to load eBPF programs.
+- Mock mode runs without any kernel privileges.
