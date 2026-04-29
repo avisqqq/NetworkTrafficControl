@@ -9,16 +9,18 @@ import (
 
 type IpMap struct {
 	ebpfMap *ebpf.Map
+	name    string
 }
 
-func NewIpMap(m *ebpf.Map) packet.Map[packet.IPKey] {
-	return &IpMap{ebpfMap: m}
+func NewIpMap(collation *ebpf.Collection, name string) packet.Map[packet.IPKey] {
+	eBPFmap := collation.Maps[name]
+	return &IpMap{ebpfMap: eBPFmap, name: name}
 }
 
 func (m *IpMap) Add(entry packet.IPKey) error {
 	val := uint8(1)
 	if err := m.ebpfMap.Update(entry, val, ebpf.UpdateAny); err != nil {
-		log.Panicf("IpMap:Add -> Failed to add IP to blacklist: %v", err)
+		log.Panicf("IpMap:Add -> Failed to add IP to %v : %v", m.name, err)
 		return err
 	}
 
@@ -27,7 +29,7 @@ func (m *IpMap) Add(entry packet.IPKey) error {
 
 func (m *IpMap) Delete(entry packet.IPKey) error {
 	if err := m.ebpfMap.Delete(entry); err != nil {
-		log.Panicf("IpMap:Delete -> Failed to remove IP from blacklist: %v", err)
+		log.Panicf("IpMap:Delete -> Failed to remove IP from %v : %v", m.name, err)
 		return err
 	}
 
@@ -45,7 +47,7 @@ func (m *IpMap) Get() ([]packet.IPKey, error) {
 	}
 
 	if err := iteration.Err(); err != nil {
-		log.Panicf("IpMap:Get -> Failed to iterate IP map: %v", err)
+		log.Panicf("IpMap:Get -> Failed to iterate IP map of %v : %v", m.name, err)
 		return nil, err
 	}
 

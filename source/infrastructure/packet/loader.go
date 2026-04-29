@@ -25,8 +25,8 @@ func NewEbpfLoader() core.EbpfLoader {
 }
 
 func (l *Loader) NewIpFilter() core.IpFilter {
-	whitelistMap := maps.NewIpMap(l.collection.Maps["whitelist"])
-	blacklistMap := maps.NewIpMap(l.collection.Maps["blacklist"])
+	whitelistMap := maps.NewIpMap(l.collection, "whitelist")
+	blacklistMap := maps.NewIpMap(l.collection, "blacklist")
 
 	return NewIpFilter(whitelistMap, blacklistMap)
 }
