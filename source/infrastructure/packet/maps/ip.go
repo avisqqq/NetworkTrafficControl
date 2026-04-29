@@ -2,7 +2,6 @@ package maps
 
 import (
 	"log"
-	"ntc/internal/model"
 	"ntc/source/domain/packet"
 
 	"github.com/cilium/ebpf"
@@ -12,11 +11,11 @@ type IpMap struct {
 	ebpfMap *ebpf.Map
 }
 
-func NewIpMap(m *ebpf.Map) packet.Map[packet.IPEntry] {
+func NewIpMap(m *ebpf.Map) packet.Map[packet.IPKey] {
 	return &IpMap{ebpfMap: m}
 }
 
-func (m *IpMap) Add(entry packet.IPEntry) error {
+func (m *IpMap) Add(entry packet.IPKey) error {
 	val := uint8(1)
 	if err := m.ebpfMap.Update(entry, val, ebpf.UpdateAny); err != nil {
 		log.Panicf("IpMap:Add -> Failed to add IP to blacklist: %v", err)
@@ -26,7 +25,7 @@ func (m *IpMap) Add(entry packet.IPEntry) error {
 	return nil
 }
 
-func (m *IpMap) Delete(entry packet.IPEntry) error {
+func (m *IpMap) Delete(entry packet.IPKey) error {
 	if err := m.ebpfMap.Delete(entry); err != nil {
 		log.Panicf("IpMap:Delete -> Failed to remove IP from blacklist: %v", err)
 		return err
@@ -35,17 +34,14 @@ func (m *IpMap) Delete(entry packet.IPEntry) error {
 	return nil
 }
 
-func (m *IpMap) Get() ([]packet.IPEntry, error) {
-	var result []packet.IPEntry
+func (m *IpMap) Get() ([]packet.IPKey, error) {
+	var result []packet.IPKey
 	iteration := m.ebpfMap.Iterate()
-	var key model.IPKey
+	var key packet.IPKey
 	var value uint8
 
 	for iteration.Next(&key, &value) {
-		result = append(result, packet.IPEntry{
-			Address: model.ParseIP(key),
-			Version: key.Version,
-		})
+		result = append(result, key)
 	}
 
 	if err := iteration.Err(); err != nil {

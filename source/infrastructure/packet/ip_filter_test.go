@@ -12,12 +12,12 @@ import (
 )
 
 type mockMap struct {
-	entries []packet.IPEntry
+	entries []packet.IPKey
 	addErr  error
 	delErr  error
 }
 
-func (m *mockMap) Add(e packet.IPEntry) error {
+func (m *mockMap) Add(e packet.IPKey) error {
 	if m.addErr != nil {
 		return m.addErr
 	}
@@ -25,7 +25,7 @@ func (m *mockMap) Add(e packet.IPEntry) error {
 	return nil
 }
 
-func (m *mockMap) Delete(e packet.IPEntry) error {
+func (m *mockMap) Delete(e packet.IPKey) error {
 	if m.delErr != nil {
 		return m.delErr
 	}
@@ -38,13 +38,13 @@ func (m *mockMap) Delete(e packet.IPEntry) error {
 	return nil
 }
 
-func (m *mockMap) Get() ([]packet.IPEntry, error) {
+func (m *mockMap) Get() ([]packet.IPKey, error) {
 	return m.entries, nil
 }
 
 func (m *mockMap) Close() error { return nil }
 
-func (m *mockMap) has(e packet.IPEntry) bool {
+func (m *mockMap) has(e packet.IPKey) bool {
 	for _, entry := range m.entries {
 		if entry == e {
 			return true
@@ -53,8 +53,21 @@ func (m *mockMap) has(e packet.IPEntry) bool {
 	return false
 }
 
-func ipv4(addr string) packet.IPEntry { return packet.IPEntry{Address: addr, Version: 4} }
-func ipv6(addr string) packet.IPEntry { return packet.IPEntry{Address: addr, Version: 6} }
+func ipv4(addr string) packet.IPKey {
+	key, err := packet.IPKeyFromString(addr)
+	if err != nil {
+		panic(err)
+	}
+	return key
+}
+
+func ipv6(addr string) packet.IPKey {
+	key, err := packet.IPKeyFromString(addr)
+	if err != nil {
+		panic(err)
+	}
+	return key
+}
 
 func TestIpFilter_AddToBlacklist_GoesToBlacklistOnly(t *testing.T) {
 	t.Parallel()
@@ -108,7 +121,7 @@ func TestIpFilter_DeleteFromBlacklist_RemovesEntry(t *testing.T) {
 	t.Parallel()
 
 	e := ipv4("1.1.1.1")
-	bl := &mockMap{entries: []packet.IPEntry{e}}
+	bl := &mockMap{entries: []packet.IPKey{e}}
 	f := infraebpf.NewIpFilter(&mockMap{}, bl)
 
 	require.NoError(t, f.DeleteFromBlacklist(e))
@@ -131,7 +144,7 @@ func TestIpFilter_DeleteFromWhitelist_RemovesEntry(t *testing.T) {
 	t.Parallel()
 
 	e := ipv4("8.8.8.8")
-	wl := &mockMap{entries: []packet.IPEntry{e}}
+	wl := &mockMap{entries: []packet.IPKey{e}}
 	f := infraebpf.NewIpFilter(wl, &mockMap{})
 
 	require.NoError(t, f.DeleteFromWhitelist(e))
@@ -142,7 +155,7 @@ func TestIpFilter_DeleteFromWhitelist_RemovesEntry(t *testing.T) {
 func TestIpFilter_GetBlacklist_ReturnsAllEntries(t *testing.T) {
 	t.Parallel()
 
-	entries := []packet.IPEntry{ipv4("1.2.3.4"), ipv4("5.6.7.8")}
+	entries := []packet.IPKey{ipv4("1.2.3.4"), ipv4("5.6.7.8")}
 	bl := &mockMap{entries: entries}
 	f := infraebpf.NewIpFilter(&mockMap{}, bl)
 
@@ -155,7 +168,7 @@ func TestIpFilter_GetBlacklist_ReturnsAllEntries(t *testing.T) {
 func TestIpFilter_GetWhitelist_ReturnsAllEntries(t *testing.T) {
 	t.Parallel()
 
-	entries := []packet.IPEntry{ipv6("::1"), ipv4("10.0.0.1")}
+	entries := []packet.IPKey{ipv6("::1"), ipv4("10.0.0.1")}
 	wl := &mockMap{entries: entries}
 	f := infraebpf.NewIpFilter(wl, &mockMap{})
 
