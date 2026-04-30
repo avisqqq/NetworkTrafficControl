@@ -100,7 +100,7 @@ func (m *Manager) ReadEvents(ctx context.Context) <-chan model.Event {
 }
 
 func (m *Manager) loadFromStore() {
-	bl, wl, ol, err := m.store.Load()
+	bl, wl, err := m.store.Load()
 	if err != nil {
 		log.Printf("persist: load failed: %v", err)
 		return
@@ -113,11 +113,6 @@ func (m *Manager) loadFromStore() {
 	for _, ip := range wl {
 		if _, err := addIPToList(m.whitelist, ip); err != nil {
 			log.Printf("persist: restore whitelist %s: %v", ip, err)
-		}
-	}
-	for _, ip := range ol {
-		if _, err := addIPToList(m.onlylocal, ip); err != nil {
-			log.Printf("persist: restore onlylocal %s: %v", ip, err)
 		}
 	}
 }
@@ -136,11 +131,6 @@ func (m *Manager) save() {
 		log.Printf("persist: save whitelist: %v", err)
 		return
 	}
-	ol, err := getIPsFromList(m.onlylocal)
-	if err != nil {
-		log.Printf("persist: save onlylocal: %v", err)
-		return
-	}
 	blIPs := make([]string, len(bl))
 	for i, e := range bl {
 		blIPs[i] = e.IP
@@ -149,11 +139,7 @@ func (m *Manager) save() {
 	for i, e := range wl {
 		wlIPs[i] = e.IP
 	}
-	olIPs := make([]string, len(ol))
-	for i, e := range ol {
-		olIPs[i] = e.IP
-	}
-	if err := m.store.Save(blIPs, wlIPs, olIPs); err != nil {
+	if err := m.store.Save(blIPs, wlIPs); err != nil {
 		log.Printf("persist: save failed: %v", err)
 	}
 }

@@ -20,11 +20,11 @@ func metricsHandler(tracker *stats.IPTracker) http.HandlerFunc {
 		// ── Traffic rate (60s sliding window) ────────────────────────────────
 		metric(&b, "gauge", "ntc_packets_per_second",
 			"Total packets per second (60s sliding window avg)")
-		fmt.Fprintf(&b, "ntc_packets_per_second %d\n\n", snap.TotalPktsPerSec)
+		fmt.Fprintf(&b, "ntc_packets_per_second %.2f\n\n", snap.TotalPktsPerSec)
 
 		metric(&b, "gauge", "ntc_bytes_per_second",
 			"Total bytes per second (60s sliding window avg)")
-		fmt.Fprintf(&b, "ntc_bytes_per_second %d\n\n", snap.TotalBytesPerSec)
+		fmt.Fprintf(&b, "ntc_bytes_per_second %.2f\n\n", snap.TotalBytesPerSec)
 
 		// ── Protocol breakdown (counters) ─────────────────────────────────────
 		metric(&b, "counter", "ntc_packets_total",
@@ -78,14 +78,14 @@ func metricsHandler(tracker *stats.IPTracker) http.HandlerFunc {
 		metric(&b, "gauge", "ntc_ip_packets_per_second",
 			"Packets per second per source IP (60s avg), top 10")
 		for _, t := range snap.TopTalkers {
-			fmt.Fprintf(&b, "ntc_ip_packets_per_second{ip=%q} %d\n", t.IP, t.PktsPerSec)
+			fmt.Fprintf(&b, "ntc_ip_packets_per_second{ip=%q} %.2f\n", t.IP, t.PktsPerSec)
 		}
 		b.WriteByte('\n')
 
 		metric(&b, "gauge", "ntc_ip_bytes_per_second",
 			"Bytes per second per source IP (60s avg), top 10")
 		for _, t := range snap.TopTalkers {
-			fmt.Fprintf(&b, "ntc_ip_bytes_per_second{ip=%q} %d\n", t.IP, t.BytesPerSec)
+			fmt.Fprintf(&b, "ntc_ip_bytes_per_second{ip=%q} %.2f\n", t.IP, t.BytesPerSec)
 		}
 		b.WriteByte('\n')
 

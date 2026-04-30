@@ -40,3 +40,13 @@ export async function fetchLocalNets() {
     v6: v6.ok ? (await v6.json() || []) : []
   }
 }
+
+export async function fetchRuntimeState() {
+  const res = await fetch('/runtime/state')
+  return res.ok ? res.json() : { mockMode: false }
+}
+
+export async function fetchMetricsText() {
+  const res = await fetch('/metrics')
+  return res.ok ? res.text() : ''
+}

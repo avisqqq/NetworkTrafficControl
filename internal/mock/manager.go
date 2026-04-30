@@ -30,7 +30,7 @@ func NewManager(store *persist.Store) *Manager {
 }
 
 func (m *Manager) loadFromStore() {
-	bl, wl, ol, err := m.store.Load()
+	bl, wl, err := m.store.Load()
 	if err != nil {
 		log.Printf("persist: load failed: %v", err)
 		return
@@ -43,11 +43,6 @@ func (m *Manager) loadFromStore() {
 	for _, ip := range wl {
 		if key, err := model.BuildIPKey(ip); err == nil {
 			m.whitelist[ip] = key
-		}
-	}
-	for _, ip := range ol {
-		if key, err := model.BuildIPKey(ip); err == nil {
-			m.onlylocal[ip] = key
 		}
 	}
 }
@@ -65,12 +60,8 @@ func (m *Manager) save() {
 	for ip := range m.whitelist {
 		wl = append(wl, ip)
 	}
-	ol := make([]string, 0, len(m.onlylocal))
-	for ip := range m.onlylocal {
-		ol = append(ol, ip)
-	}
 	m.mu.RUnlock()
-	if err := m.store.Save(bl, wl, ol); err != nil {
+	if err := m.store.Save(bl, wl); err != nil {
 		log.Printf("persist: save failed: %v", err)
 	}
 }

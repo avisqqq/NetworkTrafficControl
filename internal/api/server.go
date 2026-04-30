@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"net/http"
 	"time"
 
@@ -22,10 +23,11 @@ type ListManager interface {
 	GetLocalNetsV6() ([]model.CIDREntry, error)
 }
 
-func NewServer(addr, webDir, iface, path string, mgr ListManager, sse *SSE, ipStats *stats.IPTracker) *http.Server {
+func NewServer(addr, webDir, iface, path string, mockMode bool, mgr ListManager, sse *SSE, ipStats *stats.IPTracker) *http.Server {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/events", sse.Handler)
+	mux.HandleFunc("/runtime/state", runtimeStateHandler(mockMode))
 	mux.HandleFunc("/network/devices", networkDevicesHandler(iface, path))
 	mux.HandleFunc("/network/localnets/v4", readOnlyListHandler(mgr.GetLocalNetsV4))
 	mux.HandleFunc("/network/localnets/v6", readOnlyListHandler(mgr.GetLocalNetsV6))
@@ -40,5 +42,21 @@ func NewServer(addr, webDir, iface, path string, mgr ListManager, sse *SSE, ipSt
 		Handler:           mux,
 		ReadHeaderTimeout: 5 * time.Second,
 		IdleTimeout:       120 * time.Second,
+	}
+}
+
+func runtimeStateHandler(mockMode bool) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(struct {
+			MockMode bool `json:"mockMode"`
+		}{
+			MockMode: mockMode,
+		})
 	}
 }

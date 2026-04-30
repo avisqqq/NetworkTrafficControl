@@ -92,18 +92,18 @@ func (w *Window) Snapshot() WindowSnapshot {
 	}
 
 	return WindowSnapshot{
-		PktsPerSec:      totalPkts / buckets,
-		BytesPerSec:     totalBytes / buckets,
-		UniqueDstPorts:  len(w.UniqueDstPorts),
-		UniqueSrcIPs:    len(w.UniqueSrcIPs),
-		SynCount:        w.SynCount,
-		AckCount:        w.AckCount,
+		PktsPerSec:     float64(totalPkts) / buckets,
+		BytesPerSec:    float64(totalBytes) / buckets,
+		UniqueDstPorts: len(w.UniqueDstPorts),
+		UniqueSrcIPs:   len(w.UniqueSrcIPs),
+		SynCount:       w.SynCount,
+		AckCount:       w.AckCount,
 	}
 }
 
 type WindowSnapshot struct {
-	PktsPerSec     uint64
-	BytesPerSec    uint64
+	PktsPerSec     float64
+	BytesPerSec    float64
 	UniqueDstPorts int
 	UniqueSrcIPs   int
 	SynCount       uint32
