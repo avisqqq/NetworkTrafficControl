@@ -11,15 +11,18 @@
     error = ''
 
     try {
-      const [networkDevices, blacklist] = await Promise.all([
+      const [networkDevices, blacklist, onlyLocal] = await Promise.all([
         fetchNetworkDevices(),
-        fetchList('black')
+        fetchList('black'),
+        fetchList('local')
       ])
 
       const blacklistMap = Object.fromEntries((blacklist || []).map(entry => [entry.ip, true]))
+      const onlyLocalMap = Object.fromEntries((onlyLocal || []).map(entry => [entry.ip, true]))
       devices = networkDevices.map(device => ({
         ...device,
         active: !blacklistMap[device.ip],
+        onlyLocal: !!onlyLocalMap[device.ip],
       }))
     } catch {
       error = 'Failed to load devices'
@@ -44,6 +47,25 @@
     } catch {
       devices = devices.map((item, i) => i === index ? { ...item, active: previousActive } : item)
       error = 'Failed to update blacklist'
+    }
+  }
+
+  async function toggleOnlyLocal(device, index) {
+    if (!device.ip) return
+
+    const previousOnlyLocal = device.onlyLocal
+    const nextOnlyLocal = !previousOnlyLocal
+    devices = devices.map((item, i) => i === index ? { ...item, onlyLocal: nextOnlyLocal } : item)
+
+    try {
+      if (nextOnlyLocal) {
+        await addIP('local', device.ip)
+      } else {
+        await removeIP('local', device.ip)
+      }
+    } catch {
+      devices = devices.map((item, i) => i === index ? { ...item, onlyLocal: previousOnlyLocal } : item)
+      error = 'Failed to update only-local list'
     }
   }
 
@@ -74,6 +96,7 @@
         <th>State</th>
         <th>Sources</th>
         <th class="right">Access</th>
+        <th class="right">Only local</th>
       </tr>
     </thead>
     <tbody>
@@ -99,6 +122,19 @@
               aria-checked={device.active}
               on:click={() => toggleDevice(device, index)}
               title={device.active ? 'Active' : 'Blacklisted'}
+            >
+              <span></span>
+            </button>
+          </td>
+          <td class="right">
+            <button
+              class="switch switch-local"
+              class:active={device.onlyLocal}
+              type="button"
+              role="switch"
+              aria-checked={device.onlyLocal}
+              on:click={() => toggleOnlyLocal(device, index)}
+              title={device.onlyLocal ? 'Only local' : 'Can reach external networks'}
             >
               <span></span>
             </button>

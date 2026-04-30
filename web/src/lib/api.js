@@ -1,5 +1,8 @@
 function url(type) {
-  return type === 'black' ? '/blacklist' : '/whitelist'
+  if (type === 'black') return '/blacklist'
+  if (type === 'white') return '/whitelist'
+  if (type === 'local') return '/onlylocal'
+  return '/blacklist'
 }
 
 export async function fetchList(type) {
@@ -24,4 +27,16 @@ export async function removeIP(type, ip) {
 export async function fetchNetworkDevices() {
   const res = await fetch('/network/devices')
   return res.ok ? res.json() : []
+}
+
+export async function fetchLocalNets() {
+  const [v4, v6] = await Promise.all([
+    fetch('/network/localnets/v4'),
+    fetch('/network/localnets/v6')
+  ])
+
+  return {
+    v4: v4.ok ? (await v4.json() || []) : [],
+    v6: v6.ok ? (await v6.json() || []) : []
+  }
 }

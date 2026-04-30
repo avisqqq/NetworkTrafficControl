@@ -8,6 +8,12 @@
   let loading = false
   let error = ''
 
+  const titles = {
+    black: 'Blacklist',
+    white: 'Whitelist',
+    local: 'Only local'
+  }
+
   async function load() {
     loading = true
     error = ''
@@ -47,7 +53,7 @@
 <aside class="panel">
   <div class="card">
     <div class="panel-header">
-      <span class="panel-title">{listType === 'black' ? 'Blacklist' : 'Whitelist'}</span>
+      <span class="panel-title">{titles[listType]}</span>
       <div class="tab-group">
         <button
           class="tab"
@@ -59,6 +65,11 @@
           class:active={listType === 'white'}
           on:click={() => { listType = 'white'; load() }}
         >White</button>
+        <button
+          class="tab"
+          class:active={listType === 'local'}
+          on:click={() => { listType = 'local'; load() }}
+        >Local</button>
       </div>
     </div>
 
@@ -98,7 +109,12 @@
                   class:selected={ipInput === entry.ip}
                   on:click={() => selectEntry(entry.ip)}
                 >
-                  <span class="entry-dot" class:black={listType === 'black'} class:white={listType === 'white'}></span>
+                  <span
+                    class="entry-dot"
+                    class:black={listType === 'black'}
+                    class:white={listType === 'white'}
+                    class:local={listType === 'local'}
+                  ></span>
                   {entry.ip}
                 </button>
               </li>

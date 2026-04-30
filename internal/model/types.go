@@ -40,6 +40,7 @@ const (
 	ActDrop
 	ActSkip
 	ActSSHBypass
+	ActOnlyLocalDrop
 	ActUnknown
 )
 
@@ -53,6 +54,8 @@ func (a Action) String() string {
 		return "SKIP"
 	case ActSSHBypass:
 		return "SSH"
+	case ActOnlyLocalDrop:
+		return "ONLY_LOCAL_DROP"
 	default:
 		return "UNKNOWN"
 	}
@@ -60,7 +63,7 @@ func (a Action) String() string {
 
 func ParseAction(v uint8) Action {
 	switch Action(v) {
-	case ActPass, ActDrop, ActSkip, ActSSHBypass:
+	case ActPass, ActDrop, ActSkip, ActSSHBypass, ActOnlyLocalDrop:
 		return Action(v)
 	default:
 		return ActUnknown
@@ -141,4 +144,10 @@ func IpVersion(ip net.IP) uint8 {
 type IPEntry struct {
 	IP      string `json:"ip"`
 	Version uint8  `json:"version"`
+}
+
+type CIDREntry struct {
+	CIDR      string `json:"cidr"`
+	PrefixLen uint32 `json:"prefix_len"`
+	Version   uint8  `json:"version"`
 }

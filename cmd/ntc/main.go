@@ -17,6 +17,7 @@ import (
 	"ntc/internal/flow"
 	"ntc/internal/mock"
 	"ntc/internal/model"
+	"ntc/internal/network"
 	"ntc/internal/persist"
 	"ntc/internal/stats"
 )
@@ -56,7 +57,11 @@ func main() {
 		mgr = m
 		events = mock.GenerateEvents(ctx, m)
 	} else {
-		m, err := bpf.Load("tc_filter.bpf.o", iface, store)
+		localCIDRs, err := network.LocalCIDRs(cfg.Network.CIDRs, iface)
+		if err != nil {
+			log.Fatalf("network: local cidrs: %v", err)
+		}
+		m, err := bpf.Load("tc_filter.bpf.o", iface, store, localCIDRs)
 		if err != nil {
 			log.Fatal(err)
 		}

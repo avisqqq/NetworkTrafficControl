@@ -138,6 +138,56 @@ body {
   min-height: 180px;
 }
 
+.current-net {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.current-net-title {
+  color: var(--text-2);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.net-groups {
+  display: grid;
+  gap: 12px;
+}
+
+.net-group {
+  display: grid;
+  grid-template-columns: 52px 1fr;
+  align-items: start;
+  gap: 12px;
+}
+
+.net-family {
+  color: var(--text-3);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  line-height: 28px;
+}
+
+.net-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.net-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 28px;
+  padding: 5px 9px;
+  border: 1px solid rgba(96, 165, 250, .28);
+  border-radius: var(--radius-sm);
+  background: var(--blue-dim);
+  color: var(--blue);
+  font-family: var(--font-mono);
+  font-size: 12px;
+}
+
 .nav-tabs {
   display: flex;
   align-items: center;
@@ -518,6 +568,7 @@ body {
 
 .entry-dot.black { background: var(--rose); }
 .entry-dot.white { background: var(--teal); }
+.entry-dot.local { background: var(--amber); }
 
 /* ── Event Table ─────────────────────────────────────────────────────────── */
 .table-card {
@@ -634,6 +685,7 @@ td.addr    { word-break: break-all; min-width: 120px; }
 /* action */
 .badge.pass   { color: var(--emerald); border-color: rgba(52, 211, 153, .28);  background: var(--emerald-dim); }
 .badge.drop   { color: var(--rose);    border-color: rgba(251, 113, 133, .28); background: var(--rose-dim); }
+.badge.only_local_drop { color: var(--rose); border-color: rgba(251, 113, 133, .28); background: var(--rose-dim); }
 .badge.skip   { color: var(--amber);   border-color: rgba(251, 191, 36, .28);  background: var(--amber-dim); }
 .badge.ssh    { color: var(--blue);    border-color: rgba(96, 165, 250, .28);  background: var(--blue-dim); }
 
