@@ -7,7 +7,6 @@ type IpFilter interface {
 	DeleteFromWhitelist(entry packet.IPKey) error
 	AddToBlacklist(entry packet.IPKey) error
 	DeleteFromBlacklist(entry packet.IPKey) error
-
 	GetWhitelist() ([]packet.IPKey, error)
 	GetBlacklist() ([]packet.IPKey, error)
 }

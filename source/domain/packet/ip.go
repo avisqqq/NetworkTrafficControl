@@ -37,3 +37,14 @@ func IPKeyFromString(ipStr string) (IPKey, error) {
 	copy(key.Address[:], ip.To16())
 	return key, nil
 }
+
+func IpKeysToIpEntries(keys []IPKey) ([]IPEntry, error){
+	entries := make([]IPEntry,0,len(keys))
+	for _, key := range keys{
+		entries = append(entries, IPEntry{
+			Version: key.Version,
+			Address: key.ToString(),
+		})
+	}
+	return entries, nil
+}
