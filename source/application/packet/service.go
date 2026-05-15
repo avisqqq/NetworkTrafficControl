@@ -1,27 +1,45 @@
 package packet
 
 import (
+	"context"
+	"ntc/source/application/lists"
 	"ntc/source/domain/packet/core"
 )
+
+type Runtime struct {
+	Reader core.Reader
+	Lists lists.ListManager 
+}
 
 type PacketApp struct {
 	loader core.EbpfLoader
 }
 
-func (l *PacketApp) Start(objPath, iface string) error {
+func (l *PacketApp) Start(ctx context.Context, objPath, iface string) (*Runtime, error) {
 	if err := l.loader.LoadCollection(objPath); err != nil {
-		return err
+		return nil, err
 	}
 	if err := l.loader.ListenInterface(iface); err != nil {
-		return err
+		return nil, err
 	}
 	if err := l.loader.AttachProgram(); err != nil {
-		return err
+		return nil, err
 	}
-	return nil
+
+	reader, err := l.loader.NewReader(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	ipFilter := l.loader.NewIpFilter()
+	listService := lists.NewListService(ipFilter)
+
+	return &Runtime{
+		Reader: reader,
+		Lists:  listService,
+	}, nil
 }
 
-
-func NewPacketApp(l core.EbpfLoader) *PacketApp{
+func NewPacketApp(l core.EbpfLoader) *PacketApp {
 	return &PacketApp{loader: l}
 }

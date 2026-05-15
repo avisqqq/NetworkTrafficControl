@@ -2,13 +2,14 @@ package http
 
 import (
 	"net/http"
+	"ntc/source/application/lists"
 	"time"
 )
 
-func NewServer(addr string, mgr ListManager) *http.Server {
+func NewServer(addr string, mgr lists.ListManager) *http.Server {
 	mux := http.NewServeMux()
 
-	//	mux.HandleFunc("/events", sse.Handler)
+	// mux.HandleFunc("/events", sse.Handler)
 	mux.HandleFunc("/blacklist", handler(mgr.AddToBlackListByString, mgr.RemoveFromBlackListByString, mgr.GetFromBlackListByString))
 	mux.HandleFunc("/whitelist", handler(mgr.AddToWhiteListByString, mgr.RemoveFromWhiteListByString, mgr.GetFromWhiteListByString))
 

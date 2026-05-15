@@ -1,4 +1,4 @@
-package http
+package lists
 
 import (
 	"ntc/source/domain/packet"
