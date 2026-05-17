@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/signal"
 	"syscall"
+	"time"
 )
 
 func main() {
@@ -23,10 +24,25 @@ func main() {
 	if err != nil {
 		log.Fatalf("main: start packet app: %v", err)
 	}
+	sse := infrahttp.NewSSE()
+	infrahttp.StreamPackets(ctx, runtime.Reader, sse)
 
-	server := infrahttp.NewServer(":8080", runtime.Lists)
-	log.Printf("main: listening on %s", server.Addr)
-	if err := server.ListenAndServe(); err != nil {
-		log.Fatalf("main: http server: %v", err)
+	server := infrahttp.NewServer(":8080", runtime.Lists, sse)
+
+	go func() {
+
+		log.Printf("main: listening on %s", server.Addr)
+
+		if err := server.ListenAndServe(); err != nil {
+			log.Fatalf("main: http server: %v", err)
+		}
+	}()
+	<-ctx.Done()
+
+	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	if err := server.Shutdown(shutdownCtx); err != nil {
+		log.Printf("main: shutdown server: %v", err)
 	}
 }

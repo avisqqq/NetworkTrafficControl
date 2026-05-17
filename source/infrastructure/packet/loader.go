@@ -97,6 +97,11 @@ func (l *Loader) AttachProgram() error {
 }
 
 func (l *Loader) Close() error {
+	if l.packets != nil {
+		if err := l.packets.Close(); err != nil {
+			log.Printf("ebpf/loader:Close -> falied to close reader: %v", err)
+		}
+	}
 	if err := l.ingressLink.Close(); err != nil {
 		log.Printf("ebpf/loader:Close -> failed to close ingress link: %v", err)
 		return err
@@ -106,7 +111,8 @@ func (l *Loader) Close() error {
 		log.Printf("ebpf/loader:Close -> failed to close egress link: %v", err)
 		return err
 	}
-
-	l.collection.Close()
+	if l.collection != nil {
+		l.collection.Close()
+	}
 	return nil
 }
