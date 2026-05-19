@@ -62,19 +62,19 @@ func handler(
 	}
 }
 
-// func readOnlyListHandler[T any](getAll func() ([]T, error)) http.HandlerFunc {
-// 	return func(w http.ResponseWriter, r *http.Request) {
-// 		if r.Method != http.MethodGet {
-// 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-// 			return
-// 		}
+func readOnlyListHandler[T any](getAll func() ([]T, error)) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
 
-// 		list, err := getAll()
-// 		if err != nil {
-// 			http.Error(w, err.Error(), http.StatusInternalServerError)
-// 			return
-// 		}
+		list, err := getAll()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
 
-// 		json.NewEncoder(w).Encode(list)
-// 	}
-// }
+		json.NewEncoder(w).Encode(list)
+	}
+}

@@ -11,10 +11,11 @@ type IpResponse struct {
 }
 
 type PacketEvent struct {
+	Time string `json:"time"`
 	Seq       uint64 `json:"seq"`
 	Src       string `json:"src"`
 	Dst       string `json:"dst"`
-	Proto     uint8  `json:"proto"`
-	Action    uint8  `json:"action"`
-	Direction uint8  `json:"direction"`
+	Proto     string`json:"proto"`
+	Action    string  `json:"action"`
+	Direction string  `json:"direction"`
 }

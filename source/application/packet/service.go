@@ -40,6 +40,7 @@ func (l *PacketApp) Start(ctx context.Context, objPath, iface string) (*Runtime,
 	}, nil
 }
 
+
 func NewPacketApp(l core.EbpfLoader) *PacketApp {
 	return &PacketApp{loader: l}
 }

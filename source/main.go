@@ -6,11 +6,16 @@ import (
 	packetapp "ntc/source/application/packet"
 	infrahttp "ntc/source/infrastructure/http"
 	infrapacket "ntc/source/infrastructure/packet"
+	"ntc/source/application/traffic"
+	"ntc/source/application/packetstream"
+	"ntc/source/application/clock"
 	"os"
 	"os/signal"
 	"syscall"
 	"time"
 )
+
+var networkInterface = "wlan0"
 
 func main() {
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
@@ -20,14 +25,23 @@ func main() {
 	defer loader.Close()
 
 	packetApp := packetapp.NewPacketApp(loader)
-	runtime, err := packetApp.Start(ctx, "tc_filter.bpf.o", "enp2s0")
+	runtime, err := packetApp.Start(ctx, "tc_filter.bpf.o", networkInterface)
 	if err != nil {
 		log.Fatalf("main: start packet app: %v", err)
 	}
+	clk := clock.New("Europe/Warsaw")
 	sse := infrahttp.NewSSE()
-	infrahttp.StreamPackets(ctx, runtime.Reader, sse)
+	sseConsumer := infrahttp.NewPacketSseConsumer(sse, clk)
+	metricsService := traffic.NewService()
+	metricsService.Start(ctx)
+	dispatcher := packetstream.NewDispatcher(
+		runtime.Reader, 
+		sseConsumer,
+		metricsService,
+	)
+	dispatcher.Start(ctx)
 
-	server := infrahttp.NewServer(":8080", runtime.Lists, sse)
+	server := infrahttp.NewServer(":8086","./dist", runtime.Lists, sse, metricsService) // TODO: create consuming system and metric service
 
 	go func() {
 
