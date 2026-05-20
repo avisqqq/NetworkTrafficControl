@@ -4,17 +4,23 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"ntc/internal/network"
+	"ntc/source/application/network"
 )
 
-func HostnameHandler() http.HandlerFunc {
+func HostnameHandler(iface, leaseFile string, mockMode bool) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != http.MethodGet {
 			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 			return
 		}
-		
-		devices, err := network.ReadDevices()
+
+		if mockMode {
+			w.Header().Set("Content-Type", "application/json")
+			json.NewEncoder(w).Encode(network.MockDevices())
+			return
+		}
+
+		devices, err := network.ReadDevices(iface, leaseFile)
 		if err != nil {
 			http.Error(w, err.Error(), http.StatusInternalServerError)
 			return

@@ -6,29 +6,22 @@ import (
 )
 
 func LocalCIDRs(configCIDRs []string, ifaceName string) ([]string, error) {
-	cidrs, hasV4, hasV6, err := parseConfiguredCIDRs(configCIDRs)
-	if err != nil {
-		return nil, err
-	}
-	discovered, discoveredHasV4, discoveredHasV6, err := discoverInterfaceCIDRs(ifaceName)
-	if err != nil {
-		if len(cidrs) > 0 {
-			return cidrs, nil
+	if len(configCIDRs) > 0 {
+		cidrs, _, _, err := parseConfiguredCIDRs(configCIDRs)
+		if err != nil {
+			return nil, err
 		}
+		return cidrs, nil
+	}
+
+	discovered, _, _, err := discoverInterfaceCIDRs(ifaceName)
+	if err != nil {
 		return nil, err
 	}
-
-	if !hasV4 && discoveredHasV4 {
-		cidrs = appendFamily(cidrs, discovered, 4)
-	}
-	if !hasV6 && discoveredHasV6 {
-		cidrs = appendFamily(cidrs, discovered, 6)
-	}
-
-	if len(cidrs) == 0 {
+	if len(discovered) == 0 {
 		return nil, fmt.Errorf("no local CIDRs configured or discovered on %s", ifaceName)
 	}
-	return cidrs, nil
+	return discovered, nil
 }
 
 func parseConfiguredCIDRs(rawCIDRs []string) ([]string, bool, bool, error) {
@@ -89,23 +82,6 @@ func discoverInterfaceCIDRs(ifaceName string) ([]string, bool, bool, error) {
 		}
 	}
 	return cidrs, hasV4, hasV6, nil
-}
-
-func appendFamily(dst, src []string, family uint8) []string {
-	for _, raw := range src {
-		ip, _, err := net.ParseCIDR(raw)
-		if err != nil {
-			continue
-		}
-
-		if family == 4 && ip.To4() != nil {
-			dst = append(dst, raw)
-		}
-		if family == 6 && ip.To4() == nil {
-			dst = append(dst, raw)
-		}
-	}
-	return dst
 }
 
 func normalizeCIDR(ipNet *net.IPNet) string {
