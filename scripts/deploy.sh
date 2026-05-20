@@ -159,7 +159,7 @@ if [ "$TARGET" = "rpi-build" ]; then
 
     echo "[*] Building eBPF on RPi..."
     ssh "${RPI_USER}@${RPI_HOST}" "
-        cd ${RPI_DIR}/src/internal/bpf/c &&
+        cd ${RPI_DIR}/src/source/infrastructure/packet/c &&
         clang -O2 -g -target bpf -D__TARGET_ARCH_arm64 \
           -I/usr/include/aarch64-linux-gnu \
           -c tc_filter.bpf.c -o tc_filter.bpf.o
@@ -168,11 +168,12 @@ if [ "$TARGET" = "rpi-build" ]; then
     echo "[*] Building Go on RPi..."
     ssh "${RPI_USER}@${RPI_HOST}" "
         cd ${RPI_DIR}/src &&
-        /usr/local/go/bin/go build -o ${RPI_DIR}/ntc ./cmd/ntc &&
+        /usr/local/go/bin/go build -o ${RPI_DIR}/ntc ./source &&
         chmod +x ${RPI_DIR}/ntc &&
-        cp ${RPI_DIR}/src/internal/bpf/c/tc_filter.bpf.o ${RPI_DIR}/tc_filter.bpf.o &&
+        cp ${RPI_DIR}/src/source/infrastructure/packet/c/tc_filter.bpf.o ${RPI_DIR}/tc_filter.bpf.o &&
         rm -rf ${RPI_DIR}/dist &&
-        cp -r ${RPI_DIR}/src/dist ${RPI_DIR}/dist
+        cp -r ${RPI_DIR}/src/dist ${RPI_DIR}/dist &&
+        cp ${RPI_DIR}/src/config.yaml ${RPI_DIR}/config.yaml
     "
 
     echo "[✓] Done"
@@ -187,13 +188,13 @@ echo "[*] Building frontend (Svelte)..."
 cd web && npm run build && cd ..
 
 echo "[*] Compiling eBPF..."
-cd internal/bpf/c
+cd source/infrastructure/packet/c
 clang -O2 -g -target bpf -D__TARGET_ARCH_${BPF_ARCH} \
   -c tc_filter.bpf.c -o tc_filter.bpf.o
-cd ../../..
+cd ../../../..
 
 echo "[*] Compiling Go..."
-GOOS=linux GOARCH=$GOARCH go build -o ntc_bin ./cmd/ntc
+GOOS=linux GOARCH=$GOARCH go build -o ntc_bin ./source
 
 if [ "$TARGET" = "local" ]; then
     mkdir -p execute
@@ -204,11 +205,11 @@ echo "[*] Copying artifacts..."
 
 if [ "$TARGET" = "rpi" ]; then
     ssh "${RPI_USER}@${RPI_HOST}" "mkdir -p ${RPI_DIR}"
-    scp -r dist internal/bpf/c/tc_filter.bpf.o ntc_bin config.yaml "$DEST"
+    scp -r dist source/infrastructure/packet/c/tc_filter.bpf.o ntc_bin config.yaml "$DEST"
     ssh "${RPI_USER}@${RPI_HOST}" "mv ${RPI_DIR}/ntc_bin ${RPI_DIR}/ntc && chmod +x ${RPI_DIR}/ntc"
 else
     cp -r dist execute/
-    cp internal/bpf/c/tc_filter.bpf.o execute/
+    cp source/infrastructure/packet/c/tc_filter.bpf.o execute/
     cp ntc_bin execute/ntc
     cp config.yaml execute/
 fi
