@@ -2,7 +2,32 @@ package lists
 
 import (
 	"ntc/source/domain/packet"
+	"ntc/source/domain/network"
 )
+func (m *ListService) AddToOnlyLocalByString(ip string) (packet.IPKey, error) {
+	key, err := packet.IPKeyFromString(ip)
+	if err != nil {
+		return packet.IPKey{}, err
+	}
+	return key, m.filter.AddToOnlyLocal(key)
+}
+
+func (m *ListService) RemoveFromOnlyLocalByString(ip string) (packet.IPKey, error) {
+	key, err := packet.IPKeyFromString(ip)
+	if err != nil {
+		return packet.IPKey{}, err
+	}
+	return key, m.filter.DeleteFromOnlyLocal(key)
+}
+
+func (m *ListService) GetFromOnlyLocalByString() ([]packet.IPEntry, error) {
+	key, err := m.filter.GetOnlyLocal()
+	if err != nil {
+		return []packet.IPEntry{}, err
+	}
+	return packet.IpKeysToIpEntries(key)
+
+}
 
 func (m *ListService) AddToBlackListByString(ip string) (packet.IPKey, error) {
 	key, err := packet.IPKeyFromString(ip)
@@ -49,3 +74,50 @@ func (m *ListService) GetFromWhiteListByString() ([]packet.IPEntry, error) {
 	return packet.IpKeysToIpEntries(key)
 
 }
+func (m *ListService) AddToLocalNetsV6(ip string) (network.CIDR, error) {
+	key, err := network.CIDRFromString(ip)
+	if err != nil {
+		return network.CIDR{}, err
+	}
+	return key, m.cidrFilter.AddLocalCIDRV6(key)
+}
+	
+func (m *ListService) RemoveFromLocalNetsV6(ip string) (network.CIDR, error){
+	key, err := (network.CIDRFromString(ip))
+	if err != nil {
+		return network.CIDR{}, err
+	}
+	return key, m.cidrFilter.DeleteLocalCIDRV6(key)
+}
+
+func (m *ListService) GetFromLocalNetsV6() ([]network.CIDREntry, error) {
+	key, err := m.cidrFilter.GetLocalCIDRsV6()
+	if err != nil {
+		return []network.CIDREntry{}, err
+	}
+	return network.CIDRsToEntriesByVersion(key, 6), nil
+}
+func (m *ListService) AddToLocalNetsV4(ip string) (network.CIDR, error) {
+	key, err := network.CIDRFromString(ip)
+	if err != nil {
+		return network.CIDR{}, err
+	}
+	return key, m.cidrFilter.AddLocalCIDRV4(key)
+}
+	
+func (m *ListService) RemoveFromLocalNetsV4(ip string) (network.CIDR, error){
+	key, err := (network.CIDRFromString(ip))
+	if err != nil {
+		return network.CIDR{}, err
+	}
+	return key, m.cidrFilter.DeleteLocalCIDRV4(key)
+}
+
+func (m *ListService) GetFromLocalNetsV4() ([]network.CIDREntry, error) {
+	key, err := m.cidrFilter.GetLocalCIDRsV4()
+	if err != nil {
+		return []network.CIDREntry{}, err
+	}
+	return network.CIDRsToEntriesByVersion(key, 4), nil
+}
+

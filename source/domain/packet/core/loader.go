@@ -1,9 +1,15 @@
 package core
 
-import "context"
+import 
+(
+"context"
+"ntc/source/domain/network/core"
+)
 
 type EbpfLoader interface {
 	NewIpFilter() IpFilter
+	NewCIDRFilter() core.CIDRFilter
+
 	LoadCollection(objPath string) error
 	ListenInterface(interfaceName string) error
 	AttachProgram() error

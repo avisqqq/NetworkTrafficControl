@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"time"
 
+	"ntc/source/infrastructure/http/dto"
 	"ntc/source/domain/packet"
 )
 
@@ -32,7 +33,7 @@ func (c *PacketSseConsumer) Consume(p packet.Packet) {
 		Version: p.IPVersion,
 		Address: p.Dst,
 	}
-	event := PacketEvent{
+	event := dto.PacketEvent{
 		Time: eventTime.Format("15:04:05.00"),
 		Seq: p.Seq,
 		Src: src.ToString(),

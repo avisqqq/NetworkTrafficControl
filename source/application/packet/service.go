@@ -9,6 +9,7 @@ import (
 type Runtime struct {
 	Reader core.Reader
 	Lists lists.ListManager 
+
 }
 
 type PacketApp struct {
@@ -32,7 +33,9 @@ func (l *PacketApp) Start(ctx context.Context, objPath, iface string) (*Runtime,
 	}
 
 	ipFilter := l.loader.NewIpFilter()
-	listService := lists.NewListService(ipFilter)
+	mapFilter := l.loader.NewCIDRFilter()
+	listService := lists.NewListService(ipFilter, mapFilter)
+
 
 	return &Runtime{
 		Reader: reader,

@@ -1,13 +1,13 @@
-package http
+package handlers
 
 import (
 	"encoding/json"
 	"net/http"
-
+	"ntc/source/infrastructure/http/dto"
 	"ntc/source/domain/packet"
 )
 
-func handler(
+func IpHandler(
 	add func(string) (packet.IPKey, error),
 	remove func(string) (packet.IPKey, error),
 	getAll func() ([]packet.IPEntry, error),
@@ -16,7 +16,7 @@ func handler(
 		switch r.Method {
 
 		case http.MethodPost:
-			var req IpRequest
+			var req dto.IpRequest
 			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 				http.Error(w, "bad json", 400)
 				return
@@ -26,7 +26,7 @@ func handler(
 				http.Error(w, err.Error(), 400)
 				return
 			}
-			json.NewEncoder(w).Encode(IpResponse{
+			json.NewEncoder(w).Encode(dto.IpResponse{
 				OK:      true,
 				IP:      key.ToString(),
 				Version: key.Version,
@@ -43,9 +43,10 @@ func handler(
 				http.Error(w, err.Error(), 400)
 				return
 			}
-			json.NewEncoder(w).Encode(IpResponse{
-				OK: true,
-				IP: key.ToString(),
+			json.NewEncoder(w).Encode(dto.IpResponse{
+				OK:      true,
+				IP:      key.ToString(),
+				Version: key.Version,
 			})
 
 		case http.MethodGet:
@@ -59,22 +60,5 @@ func handler(
 		default:
 			http.Error(w, "method not allowed", 405)
 		}
-	}
-}
-
-func readOnlyListHandler[T any](getAll func() ([]T, error)) http.HandlerFunc {
-	return func(w http.ResponseWriter, r *http.Request) {
-		if r.Method != http.MethodGet {
-			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
-			return
-		}
-
-		list, err := getAll()
-		if err != nil {
-			http.Error(w, err.Error(), http.StatusInternalServerError)
-			return
-		}
-
-		json.NewEncoder(w).Encode(list)
 	}
 }

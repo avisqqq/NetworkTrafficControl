@@ -3,12 +3,12 @@ package main
 import (
 	"context"
 	"log"
+	"ntc/source/application/clock"
 	packetapp "ntc/source/application/packet"
+	"ntc/source/application/packetstream"
+	"ntc/source/application/traffic"
 	infrahttp "ntc/source/infrastructure/http"
 	infrapacket "ntc/source/infrastructure/packet"
-	"ntc/source/application/traffic"
-	"ntc/source/application/packetstream"
-	"ntc/source/application/clock"
 	"os"
 	"os/signal"
 	"syscall"
@@ -35,13 +35,13 @@ func main() {
 	metricsService := traffic.NewService()
 	metricsService.Start(ctx)
 	dispatcher := packetstream.NewDispatcher(
-		runtime.Reader, 
+		runtime.Reader,
 		sseConsumer,
 		metricsService,
 	)
 	dispatcher.Start(ctx)
 
-	server := infrahttp.NewServer(":8086","./dist", runtime.Lists, sse, metricsService) // TODO: create consuming system and metric service
+	server := infrahttp.NewServer(":8086", "./dist", runtime.Lists, sse, metricsService)
 
 	go func() {
 

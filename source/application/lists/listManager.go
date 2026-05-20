@@ -2,6 +2,7 @@ package lists
 
 import (
 	"ntc/source/domain/packet"
+	"ntc/source/domain/network"
 )
 
 type ListManager interface {
@@ -11,4 +12,13 @@ type ListManager interface {
 	AddToWhiteListByString(ip string) (packet.IPKey, error)
 	RemoveFromWhiteListByString(ip string) (packet.IPKey, error)
 	GetFromWhiteListByString() ([]packet.IPEntry, error)
+	AddToOnlyLocalByString(ip string) (packet.IPKey, error)
+	RemoveFromOnlyLocalByString(ip string) (packet.IPKey, error)
+	GetFromOnlyLocalByString() ([]packet.IPEntry, error)
+	AddToLocalNetsV4(ip string) (network.CIDR, error)
+	RemoveFromLocalNetsV4(ip string) (network.CIDR, error)
+	GetFromLocalNetsV4() ([]network.CIDREntry, error)
+	AddToLocalNetsV6(ip string) (network.CIDR, error)
+	RemoveFromLocalNetsV6(ip string) (network.CIDR, error)
+	GetFromLocalNetsV6() ([]network.CIDREntry, error)
 }

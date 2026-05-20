@@ -1,13 +1,15 @@
 package lists
 
 import (
-	"ntc/source/domain/packet/core"
+	coreDomain "ntc/source/domain/packet/core"
+	coreNetwork "ntc/source/domain/network/core"
 )
 
 type ListService struct {
-	filter core.IpFilter
+	filter coreDomain.IpFilter
+	cidrFilter coreNetwork.CIDRFilter
 }
 
-func NewListService(f core.IpFilter) *ListService {
-	return &ListService{filter: f}
+func NewListService(f coreDomain.IpFilter, cidrFilter coreNetwork.CIDRFilter) *ListService {
+	return &ListService{filter: f, cidrFilter: cidrFilter}
 }

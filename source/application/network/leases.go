@@ -3,7 +3,7 @@ package network
 import (
 	"bufio"
 	"net"
-	"ntc/internal/model"
+	"ntc/source/domain/packet"
 	"os"
 	"os/exec"
 	"strings"
@@ -42,7 +42,7 @@ func ReadDNSMasqLeases(path string) ([]NetworkDevice, error) {
 
 		devices = append(devices, NetworkDevice{
 			IP:       ip,
-			Version:  model.IpVersion(parsedIP),
+			Version:  packet.IPVersion(parsedIP),
 			MAC:      mac,
 			Hostname: hostname,
 			Source:   []string{"dhcp"},
@@ -81,7 +81,7 @@ func ReadNeighbors(iface string) ([]NetworkDevice, error) {
 
 		device := NetworkDevice{
 			IP:      ip,
-			Version: model.IpVersion(parsedIP),
+			Version: packet.IPVersion(parsedIP),
 			Source:  []string{"neigh"},
 		}
 		for i := 1; i < len(fields); i++ {
@@ -113,8 +113,7 @@ func isNeighborState(s string) bool {
 	}
 }
 
-func ReadDevices() ([]NetworkDevice, error) {
-	iface, path := "wlan0", "/var/lib/misc/dnsmasq.leases"
+func ReadDevices(iface, path string) ([]NetworkDevice, error) {
 	leases, leasesErr := ReadDNSMasqLeases(path)
 	nieghbors, nieghErr := ReadNeighbors(iface)
 
