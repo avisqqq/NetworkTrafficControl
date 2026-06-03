@@ -63,7 +63,7 @@ const (
 
 type AppLog struct {
 	ID           uint64
-	CreateAt     time.Time
+	CreatedAt     time.Time
 	Level        Level
 	Category     Category
 	Event        Event
@@ -72,5 +72,5 @@ type AppLog struct {
 	EntityID     string
 	Actor        Actor
 	Source       Source
-	MetadateJSON string
+	MetadataJSON string
 }

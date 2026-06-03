@@ -11,7 +11,7 @@ import (
 )
 
 func Open(path string) (*gorm.DB, error) {
-	if err := os.Mkdir(filepath.Dir(path), 0o755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return nil, err
 	}
 

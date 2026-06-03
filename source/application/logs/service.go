@@ -15,8 +15,8 @@ func (s *Service) NewSerice(repo Repository) *Service {
 }
 
 func (s *Service) Add(ctx context.Context, log domain.AppLog) (domain.AppLog, error) {
-	if log.CreateAt.IsZero() {
-		log.CreateAt = time.Now().UTC()
+	if log.CreatedAt.IsZero() {
+		log.CreatedAt = time.Now().UTC()
 	}
 	return s.repo.Add(ctx, log)
 }

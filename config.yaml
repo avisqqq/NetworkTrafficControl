@@ -19,7 +19,7 @@ persistence:
   path: ./data/lists.json
 
 app_log:
-  path: ./data/app_log.db
+  path: ./data/app_logs.db
 # alerts:
 #   telegram:
 #     bot_token: ""
