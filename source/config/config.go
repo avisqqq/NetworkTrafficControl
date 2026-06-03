@@ -11,9 +11,14 @@ type Config struct {
 	Server      ServerConfig      `yaml:"server"`
 	Network     NetworkConfig     `yaml:"network"`
 	Persistence PersistenceConfig `yaml:"persistence"`
+	AppLogs     AppLogsConfig     `yaml:"app_logs"`
 }
 
 type PersistenceConfig struct {
+	Path string `yaml:"path"`
+}
+
+type AppLogsConfig struct {
 	Path string `yaml:"path"`
 }
 
