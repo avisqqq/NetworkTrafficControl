@@ -17,6 +17,10 @@ import (
 	infrapacket "ntc/source/infrastructure/packet"
 	"ntc/source/infrastructure/persist"
 	infrasystem "ntc/source/infrastructure/system"
+	infraLog "ntc/source/infrastructure/storage/gorm/repositories"
+	infraStorage "ntc/source/infrastructure/storage"
+	appLogService "ntc/source/application/logs"
+	appLogDomain "ntc/source/domain/logs"
 	"os"
 	"os/signal"
 	"syscall"
@@ -35,6 +39,12 @@ func main() {
 	if len(cfg.Network.Interfaces) == 0 {
 		log.Fatal("config: network.interfaces must contain at least one interface")
 	}
+	appLogDb, err := infraStorage.Open(cfg.AppLogs.Path)
+	if err != nil {
+		log.Fatalf("app logs: %v", err)
+	}
+	appLogRepo := infraLog.NewAppLogRepository(appLogDb)
+	appLog := appLogService.NewSerice(appLogRepo)
 
 	networkInterface := cfg.Network.Interfaces[0]
 	leaseFile := cfg.Network.LeaseFile
@@ -48,6 +58,7 @@ func main() {
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	appLog.Info(ctx, appLogDomain.CategorySystem, appLogDomain.EventServiceStarted, "service started")
 	defer stop()
 
 	var runtime *packetapp.Runtime

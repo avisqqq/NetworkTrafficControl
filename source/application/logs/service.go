@@ -10,7 +10,7 @@ type Service struct {
 	repo Repository
 }
 
-func (s *Service) NewSerice(repo Repository) *Service {
+func NewSerice(repo Repository) *Service {
 	return &Service{repo: repo}
 }
 

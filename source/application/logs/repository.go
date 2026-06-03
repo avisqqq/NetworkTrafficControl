@@ -10,7 +10,7 @@ type Filter struct {
 	Category   domain.Category
 	Event      string
 	EntityType string
-	EntityId   string
+	EntityID   string
 	Search     string
 	Limit      int
 }
