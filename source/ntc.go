@@ -10,11 +10,13 @@ import (
 	appNetwork "ntc/source/application/network"
 	packetapp "ntc/source/application/packet"
 	"ntc/source/application/packetstream"
+	appsystem "ntc/source/application/system"
 	"ntc/source/application/traffic"
 	"ntc/source/config"
 	infrahttp "ntc/source/infrastructure/http"
 	infrapacket "ntc/source/infrastructure/packet"
 	"ntc/source/infrastructure/persist"
+	infrasystem "ntc/source/infrastructure/system"
 	"os"
 	"os/signal"
 	"syscall"
@@ -79,6 +81,7 @@ func main() {
 	sseConsumer := infrahttp.NewPacketSseConsumer(sse, clk)
 	metricsService := traffic.NewService()
 	metricsService.Start(ctx)
+	systemService := appsystem.NewService(infrasystem.NewSystemCollector())
 	dispatcher := packetstream.NewDispatcher(
 		runtime.Reader,
 		sseConsumer,
@@ -86,7 +89,7 @@ func main() {
 	)
 	dispatcher.Start(ctx)
 
-	server := infrahttp.NewServer(cfg.ServerAddr(), "./dist", networkInterface, leaseFile, runtime.Lists, sse, metricsService, *mockMode)
+	server := infrahttp.NewServer(cfg.ServerAddr(), "./dist", networkInterface, leaseFile, runtime.Lists, sse, metricsService, systemService, *mockMode)
 
 	go func() {
 

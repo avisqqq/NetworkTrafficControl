@@ -5,6 +5,7 @@
   import ListPanel from './lib/ListPanel.svelte'
   import NetworkDevices from './lib/NetworkDevices.svelte'
   import MetricsView from './lib/MetricsView.svelte'
+  import SystemMonitor from './lib/SystemMonitor.svelte'
   import { fetchList, fetchLocalNets, fetchMetricsText } from './lib/api.js'
   import { fitPopover } from './lib/popover.js'
 
@@ -230,4 +231,6 @@
   </main>
 {:else if activeView === 'metrics'}
   <MetricsView bind:metricsText={overviewMetrics} />
+{:else if activeView === 'system'}
+  <SystemMonitor />
 {/if}

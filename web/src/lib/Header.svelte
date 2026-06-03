@@ -13,6 +13,7 @@
     if (activeView === 'live') return 'Live traffic'
     if (activeView === 'hostnames') return 'Network devices'
     if (activeView === 'metrics') return 'Metrics'
+    if (activeView === 'system') return 'System monitor'
     return 'Overview'
   }
 
@@ -68,6 +69,13 @@
         on:click={() => activeView = 'metrics'}
       >
         Metrics
+      </button>
+      <button
+        class="nav-tab"
+        class:active={activeView === 'system'}
+        on:click={() => activeView = 'system'}
+      >
+        System
       </button>
     </nav>
 
