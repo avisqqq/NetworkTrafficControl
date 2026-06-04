@@ -4,12 +4,13 @@ import (
 	"net/http"
 	"time"
 
+	"ntc/source/application/inspection"
 	"ntc/source/application/lists"
 	appsystem "ntc/source/application/system"
 	"ntc/source/infrastructure/http/handlers"
 )
 
-func NewServer(addr, webDir, iface, leaseFile string, mgr lists.ListManager, sse *SSE, metrics MetricsProvider, system *appsystem.Service, mockMode bool) *http.Server {
+func NewServer(addr, webDir, iface, leaseFile string, mgr lists.ListManager, sse *SSE, metrics MetricsProvider, system *appsystem.Service, mockMode bool, appLogs handlers.AppLogProvider, logger APIErrorLogger, inspector *inspection.Service) *http.Server {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/events", sse.Handler)
@@ -22,11 +23,13 @@ func NewServer(addr, webDir, iface, leaseFile string, mgr lists.ListManager, sse
 	mux.HandleFunc("/network/localnets/v4", handlers.CidrHandler(mgr.AddToLocalNetsV4, mgr.RemoveFromLocalNetsV4, mgr.GetFromLocalNetsV4))
 	mux.HandleFunc("/network/localnets/v6", handlers.CidrHandler(mgr.AddToLocalNetsV6, mgr.RemoveFromLocalNetsV6, mgr.GetFromLocalNetsV6))
 	mux.HandleFunc("/metrics", metricsHandler(metrics))
+	mux.HandleFunc("/app/logs", handlers.AppLogsHandler(appLogs))
+	mux.HandleFunc("/packet/inspect", handlers.PacketInspectHandler(inspector))
 	mux.HandleFunc("/system/events", handlers.SystemEventsHandler(system))
 	mux.Handle("/", http.FileServer(http.Dir(webDir)))
 	return &http.Server{
 		Addr:              addr,
-		Handler:           mux,
+		Handler:           LoggingMiddleware(mux, logger),
 		ReadHeaderTimeout: 5 * time.Second,
 		IdleTimeout:       120 * time.Second,
 	}

@@ -39,7 +39,10 @@ function matches(e) {
     (e.action || '').toLowerCase().includes(q) ||
     (e.direction || '').toLowerCase().includes(q) ||
     (e.src || '').toLowerCase().includes(q) ||
-    (e.dst || '').toLowerCase().includes(q)
+    (e.dst || '').toLowerCase().includes(q) ||
+    String(e.src_port || '').includes(q) ||
+    String(e.dst_port || '').includes(q) ||
+    String(e.pkt_size || '').includes(q)
   )
 }
 

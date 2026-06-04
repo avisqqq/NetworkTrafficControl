@@ -5,7 +5,9 @@ import (
 	"flag"
 	"log"
 	"ntc/source/application/clock"
+	"ntc/source/application/inspection"
 	"ntc/source/application/lists"
+	appLogService "ntc/source/application/logs"
 	"ntc/source/application/mock"
 	appNetwork "ntc/source/application/network"
 	packetapp "ntc/source/application/packet"
@@ -13,9 +15,12 @@ import (
 	appsystem "ntc/source/application/system"
 	"ntc/source/application/traffic"
 	"ntc/source/config"
+	infrageo "ntc/source/infrastructure/geo"
 	infrahttp "ntc/source/infrastructure/http"
 	infrapacket "ntc/source/infrastructure/packet"
 	"ntc/source/infrastructure/persist"
+	infraStorage "ntc/source/infrastructure/storage"
+	infraLog "ntc/source/infrastructure/storage/gorm/repositories"
 	infrasystem "ntc/source/infrastructure/system"
 	"os"
 	"os/signal"
@@ -48,6 +53,14 @@ func main() {
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	appLogDb, err := infraStorage.Open(cfg.AppLogs.Path)
+	if err != nil {
+		log.Fatalf("app logs: %v", err)
+	}
+	appLogRepo := infraLog.NewAppLogRepository(appLogDb)
+	appLog := appLogService.NewService(appLogRepo)
+	appLog.ConfigLoaded(ctx)
+	appLog.ServiceStarted(ctx)
 	defer stop()
 
 	var runtime *packetapp.Runtime
@@ -58,10 +71,10 @@ func main() {
 			log.Printf("network: local cidrs unavailable in mock mode: %v", err)
 		}
 		manager := mock.NewManager(localCIDRs)
-		lists.RestorePersistentLists(manager, store)
+		lists.RestorePersistentLists(manager, store, appLog)
 		runtime = &packetapp.Runtime{
 			Reader: mock.NewReader(ctx, manager),
-			Lists:  lists.NewPersistentListManager(manager, store),
+			Lists:  lists.NewLoggedListManager(lists.NewPersistentListManager(manager, store, appLog), appLog),
 		}
 	} else {
 		loader := infrapacket.NewEbpfLoader()
@@ -72,8 +85,8 @@ func main() {
 		if err != nil {
 			log.Fatalf("main: start packet app: %v", err)
 		}
-		lists.RestorePersistentLists(runtime.Lists, store)
-		runtime.Lists = lists.NewPersistentListManager(runtime.Lists, store)
+		lists.RestorePersistentLists(runtime.Lists, store, appLog)
+		runtime.Lists = lists.NewLoggedListManager(lists.NewPersistentListManager(runtime.Lists, store, appLog), appLog)
 	}
 
 	clk := clock.New(cfg.Server.Timezone)
@@ -82,6 +95,14 @@ func main() {
 	metricsService := traffic.NewService()
 	metricsService.Start(ctx)
 	systemService := appsystem.NewService(infrasystem.NewSystemCollector())
+	var geoProvider inspection.GeoProvider
+	if cfg.Geo.Enabled && cfg.Geo.Provider == "ip-api" {
+		geoProvider = infrageo.NewIPAPIProvider(
+			time.Duration(cfg.Geo.TimeoutSeconds)*time.Second,
+			time.Duration(cfg.Geo.CacheTTLSeconds)*time.Second,
+		)
+	}
+	inspectionService := inspection.NewService(geoProvider, appLog)
 	dispatcher := packetstream.NewDispatcher(
 		runtime.Reader,
 		sseConsumer,
@@ -89,7 +110,7 @@ func main() {
 	)
 	dispatcher.Start(ctx)
 
-	server := infrahttp.NewServer(cfg.ServerAddr(), "./dist", networkInterface, leaseFile, runtime.Lists, sse, metricsService, systemService, *mockMode)
+	server := infrahttp.NewServer(cfg.ServerAddr(), "./dist", networkInterface, leaseFile, runtime.Lists, sse, metricsService, systemService, *mockMode, appLog, appLog, inspectionService)
 
 	go func() {
 

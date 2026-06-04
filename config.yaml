@@ -1,10 +1,10 @@
 server:
   port: 8086
-  timezone: Europe/Warsaw  # IANA timezone, empty = UTC
+  timezone: Europe/Warsaw # IANA timezone, empty = UTC
 
 network:
   interfaces:
-    - wlan0  # interfaces to attach XDP to
+    - wlan0 # interfaces to attach XDP to
   cidrs:
 
   lease_file: /var/lib/misc/dnsmasq.leases
@@ -18,6 +18,14 @@ network:
 persistence:
   path: ./data/lists.json
 
+app_logs:
+  path: ./data/app_logs.db
+
+geo:
+  enabled: true
+  provider: ip-api
+  timeout_seconds: 2
+  cache_ttl_seconds: 86400
 # alerts:
 #   telegram:
 #     bot_token: ""
