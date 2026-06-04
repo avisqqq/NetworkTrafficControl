@@ -16,6 +16,7 @@
   let localNetsError = ''
   let overviewMetrics = ''
   let listCounts = { black: 0, white: 0, local: 0 }
+  let selectedPacket = null
   const currentHost = window.location.hostname || 'localhost'
   const grafanaBase = `http://${currentHost}:3000/d`
   const victoriaBase = `http://${currentHost}:8428/vmui/`
@@ -223,8 +224,8 @@
   </main>
 {:else if activeView === 'live'}
   <main class="split container">
-    <ListPanel />
-    <EventTable />
+    <ListPanel bind:selectedPacket />
+    <EventTable bind:selectedPacket />
   </main>
 {:else if activeView === 'hostnames'}
   <main class="container page">

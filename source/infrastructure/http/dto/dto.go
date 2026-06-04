@@ -24,9 +24,14 @@ type PacketEvent struct {
 	Seq       uint64 `json:"seq"`
 	Src       string `json:"src"`
 	Dst       string `json:"dst"`
+	SrcPort   uint16 `json:"src_port"`
+	DstPort   uint16 `json:"dst_port"`
+	PktSize   uint16 `json:"pkt_size"`
 	Proto     string `json:"proto"`
 	Action    string `json:"action"`
+	IPVersion uint8  `json:"ip_version"`
 	Direction string `json:"direction"`
+	TCPFlags  uint8  `json:"tcp_flags"`
 }
 
 type AppLogResponse struct {

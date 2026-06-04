@@ -12,6 +12,7 @@ type Config struct {
 	Network     NetworkConfig     `yaml:"network"`
 	Persistence PersistenceConfig `yaml:"persistence"`
 	AppLogs     AppLogsConfig     `yaml:"app_logs"`
+	Geo         GeoConfig         `yaml:"geo"`
 }
 
 type PersistenceConfig struct {
@@ -20,6 +21,13 @@ type PersistenceConfig struct {
 
 type AppLogsConfig struct {
 	Path string `yaml:"path"`
+}
+
+type GeoConfig struct {
+	Enabled         bool   `yaml:"enabled"`
+	Provider        string `yaml:"provider"`
+	TimeoutSeconds  int    `yaml:"timeout_seconds"`
+	CacheTTLSeconds int    `yaml:"cache_ttl_seconds"`
 }
 
 type ServerConfig struct {
@@ -48,6 +56,15 @@ var defaults = Config{
 	},
 	Persistence: PersistenceConfig{
 		Path: "./data/lists.json",
+	},
+	AppLogs: AppLogsConfig{
+		Path: "./data/app_logs.db",
+	},
+	Geo: GeoConfig{
+		Enabled:         false,
+		Provider:        "ip-api",
+		TimeoutSeconds:  2,
+		CacheTTLSeconds: 86400,
 	},
 }
 

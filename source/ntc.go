@@ -5,6 +5,7 @@ import (
 	"flag"
 	"log"
 	"ntc/source/application/clock"
+	"ntc/source/application/inspection"
 	"ntc/source/application/lists"
 	appLogService "ntc/source/application/logs"
 	"ntc/source/application/mock"
@@ -14,6 +15,7 @@ import (
 	appsystem "ntc/source/application/system"
 	"ntc/source/application/traffic"
 	"ntc/source/config"
+	infrageo "ntc/source/infrastructure/geo"
 	infrahttp "ntc/source/infrastructure/http"
 	infrapacket "ntc/source/infrastructure/packet"
 	"ntc/source/infrastructure/persist"
@@ -93,6 +95,14 @@ func main() {
 	metricsService := traffic.NewService()
 	metricsService.Start(ctx)
 	systemService := appsystem.NewService(infrasystem.NewSystemCollector())
+	var geoProvider inspection.GeoProvider
+	if cfg.Geo.Enabled && cfg.Geo.Provider == "ip-api" {
+		geoProvider = infrageo.NewIPAPIProvider(
+			time.Duration(cfg.Geo.TimeoutSeconds)*time.Second,
+			time.Duration(cfg.Geo.CacheTTLSeconds)*time.Second,
+		)
+	}
+	inspectionService := inspection.NewService(geoProvider, appLog)
 	dispatcher := packetstream.NewDispatcher(
 		runtime.Reader,
 		sseConsumer,
@@ -100,7 +110,7 @@ func main() {
 	)
 	dispatcher.Start(ctx)
 
-	server := infrahttp.NewServer(cfg.ServerAddr(), "./dist", networkInterface, leaseFile, runtime.Lists, sse, metricsService, systemService, *mockMode, appLog, appLog)
+	server := infrahttp.NewServer(cfg.ServerAddr(), "./dist", networkInterface, leaseFile, runtime.Lists, sse, metricsService, systemService, *mockMode, appLog, appLog, inspectionService)
 
 	go func() {
 
