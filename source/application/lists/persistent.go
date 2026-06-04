@@ -1,6 +1,7 @@
 package lists
 
 import (
+	"context"
 	"log"
 
 	"ntc/source/domain/network"
@@ -8,16 +9,21 @@ import (
 	"ntc/source/infrastructure/persist"
 )
 
+type StorageLogger interface {
+	StorageError(ctx context.Context, operation string, err error)
+}
+
 type PersistentListManager struct {
-	next  ListManager
-	store *persist.Store
+	next   ListManager
+	store  *persist.Store
+	logger StorageLogger
 }
 
-func NewPersistentListManager(next ListManager, store *persist.Store) *PersistentListManager {
-	return &PersistentListManager{next: next, store: store}
+func NewPersistentListManager(next ListManager, store *persist.Store, logger StorageLogger) *PersistentListManager {
+	return &PersistentListManager{next: next, store: store, logger: logger}
 }
 
-func RestorePersistentLists(next ListManager, store *persist.Store) {
+func RestorePersistentLists(next ListManager, store *persist.Store, logger StorageLogger) {
 	if store == nil {
 		return
 	}
@@ -25,17 +31,20 @@ func RestorePersistentLists(next ListManager, store *persist.Store) {
 	data, err := store.Load()
 	if err != nil {
 		log.Printf("persist: load failed: %v", err)
+		logStorageError(logger, "load persistent lists", err)
 		return
 	}
 
 	for _, ip := range data.Blacklist {
 		if _, err := next.AddToBlackListByString(ip); err != nil {
 			log.Printf("persist: restore blacklist %s: %v", ip, err)
+			logStorageError(logger, "restore blacklist "+ip, err)
 		}
 	}
 	for _, ip := range data.Whitelist {
 		if _, err := next.AddToWhiteListByString(ip); err != nil {
 			log.Printf("persist: restore whitelist %s: %v", ip, err)
+			logStorageError(logger, "restore whitelist "+ip, err)
 		}
 	}
 }
@@ -120,11 +129,13 @@ func (m *PersistentListManager) save() {
 	blacklist, err := m.next.GetFromBlackListByString()
 	if err != nil {
 		log.Printf("persist: read blacklist: %v", err)
+		logStorageError(m.logger, "read blacklist", err)
 		return
 	}
 	whitelist, err := m.next.GetFromWhiteListByString()
 	if err != nil {
 		log.Printf("persist: read whitelist: %v", err)
+		logStorageError(m.logger, "read whitelist", err)
 		return
 	}
 
@@ -132,7 +143,15 @@ func (m *PersistentListManager) save() {
 	whitelistsIPs := entriesToIPs(whitelist)
 	if err := m.store.SaveLists(blacklistIPs, whitelistsIPs); err != nil {
 		log.Printf("persist: save failed: %v", err)
+		logStorageError(m.logger, "save persistent lists", err)
 	}
+}
+
+func logStorageError(logger StorageLogger, operation string, err error) {
+	if logger == nil || err == nil {
+		return
+	}
+	logger.StorageError(context.Background(), operation, err)
 }
 
 func entriesToIPs(entries []packet.IPEntry) []string {

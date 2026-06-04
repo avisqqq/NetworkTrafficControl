@@ -14,6 +14,7 @@
     if (activeView === 'hostnames') return 'Network devices'
     if (activeView === 'metrics') return 'Metrics'
     if (activeView === 'system') return 'System monitor'
+    if (activeView === 'logs') return 'Audit logs'
     return 'Overview'
   }
 
@@ -76,6 +77,13 @@
         on:click={() => activeView = 'system'}
       >
         System
+      </button>
+      <button
+        class="nav-tab"
+        class:active={activeView === 'logs'}
+        on:click={() => activeView = 'logs'}
+      >
+        Logs
       </button>
     </nav>
 

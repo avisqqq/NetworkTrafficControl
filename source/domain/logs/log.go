@@ -27,23 +27,23 @@ const (
 	EventServiceStarted Event = "service.started"
 	EventConfigLoaded   Event = "config.loaded"
 
-	EventEbpfLoaded       Event = "ebpf.loaded"
-	EventEbpfAttachFailed Event = "ebpf.attach_failed"
-
 	EventWhitelistAdded   Event = "whitelist.added"
-	EventWhitelistRemove  Event = "whitelist.removed"
+	EventWhitelistRemoved Event = "whitelist.removed"
 	EventBlacklistAdded   Event = "blacklist.added"
-	EventBlakclistRemoved Event = "blacklist.removed"
+	EventBlacklistRemoved Event = "blacklist.removed"
 	EventOnlyLocalAdded   Event = "onlylocal.added"
-	EnventOnlyLocalRemoed Event = "olnylocal.removed"
+	EventOnlyLocalRemoved Event = "onlylocal.removed"
+	EventLocalNetAdded    Event = "localnet.added"
+	EventLocalNetRemoved  Event = "localnet.removed"
 
+	EventAPIError     Event = "api.error"
 	EventStorageError Event = "storage.error"
 )
 
 const (
 	ActorSystem Actor = "system"
-	ActorApi    Actor = "api"
-	AcotrUser   Actor = "user"
+	ActorAPI    Actor = "api"
+	ActorUser   Actor = "user"
 )
 
 const (
@@ -55,15 +55,15 @@ const (
 )
 
 const (
-	EntityTypeIP         EntityType = "ip"
-	EnitityTypeCIDR      EntityType = "cidr"
-	EnitityTypeInterface EntityType = "interface"
-	EnitityTypeDevice    EntityType = "Device"
+	EntityTypeIP        EntityType = "ip"
+	EntityTypeCIDR      EntityType = "cidr"
+	EntityTypeInterface EntityType = "interface"
+	EntityTypeDevice    EntityType = "device"
 )
 
 type AppLog struct {
 	ID           uint64
-	CreatedAt     time.Time
+	CreatedAt    time.Time
 	Level        Level
 	Category     Category
 	Event        Event

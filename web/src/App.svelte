@@ -6,6 +6,7 @@
   import NetworkDevices from './lib/NetworkDevices.svelte'
   import MetricsView from './lib/MetricsView.svelte'
   import SystemMonitor from './lib/SystemMonitor.svelte'
+  import AuditLogs from './lib/AuditLogs.svelte'
   import { fetchList, fetchLocalNets, fetchMetricsText } from './lib/api.js'
   import { fitPopover } from './lib/popover.js'
 
@@ -233,4 +234,6 @@
   <MetricsView bind:metricsText={overviewMetrics} />
 {:else if activeView === 'system'}
   <SystemMonitor />
+{:else if activeView === 'logs'}
+  <AuditLogs />
 {/if}

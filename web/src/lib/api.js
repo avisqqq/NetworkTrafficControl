@@ -52,3 +52,9 @@ export async function fetchMetricsText() {
   const res = await fetch("/metrics");
   return res.ok ? res.text() : "";
 }
+
+export async function fetchAppLogs(limit = 200) {
+  const res = await fetch(`/app/logs?limit=${encodeURIComponent(limit)}`);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}

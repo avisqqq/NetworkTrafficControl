@@ -6,6 +6,7 @@ import (
 	"log"
 	"ntc/source/application/clock"
 	"ntc/source/application/lists"
+	appLogService "ntc/source/application/logs"
 	"ntc/source/application/mock"
 	appNetwork "ntc/source/application/network"
 	packetapp "ntc/source/application/packet"
@@ -16,11 +17,9 @@ import (
 	infrahttp "ntc/source/infrastructure/http"
 	infrapacket "ntc/source/infrastructure/packet"
 	"ntc/source/infrastructure/persist"
-	infrasystem "ntc/source/infrastructure/system"
-	infraLog "ntc/source/infrastructure/storage/gorm/repositories"
 	infraStorage "ntc/source/infrastructure/storage"
-	appLogService "ntc/source/application/logs"
-	appLogDomain "ntc/source/domain/logs"
+	infraLog "ntc/source/infrastructure/storage/gorm/repositories"
+	infrasystem "ntc/source/infrastructure/system"
 	"os"
 	"os/signal"
 	"syscall"
@@ -39,12 +38,6 @@ func main() {
 	if len(cfg.Network.Interfaces) == 0 {
 		log.Fatal("config: network.interfaces must contain at least one interface")
 	}
-	appLogDb, err := infraStorage.Open(cfg.AppLogs.Path)
-	if err != nil {
-		log.Fatalf("app logs: %v", err)
-	}
-	appLogRepo := infraLog.NewAppLogRepository(appLogDb)
-	appLog := appLogService.NewSerice(appLogRepo)
 
 	networkInterface := cfg.Network.Interfaces[0]
 	leaseFile := cfg.Network.LeaseFile
@@ -58,7 +51,14 @@ func main() {
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
-	appLog.Info(ctx, appLogDomain.CategorySystem, appLogDomain.EventServiceStarted, "service started")
+	appLogDb, err := infraStorage.Open(cfg.AppLogs.Path)
+	if err != nil {
+		log.Fatalf("app logs: %v", err)
+	}
+	appLogRepo := infraLog.NewAppLogRepository(appLogDb)
+	appLog := appLogService.NewService(appLogRepo)
+	appLog.ConfigLoaded(ctx)
+	appLog.ServiceStarted(ctx)
 	defer stop()
 
 	var runtime *packetapp.Runtime
@@ -69,10 +69,10 @@ func main() {
 			log.Printf("network: local cidrs unavailable in mock mode: %v", err)
 		}
 		manager := mock.NewManager(localCIDRs)
-		lists.RestorePersistentLists(manager, store)
+		lists.RestorePersistentLists(manager, store, appLog)
 		runtime = &packetapp.Runtime{
 			Reader: mock.NewReader(ctx, manager),
-			Lists:  lists.NewPersistentListManager(manager, store),
+			Lists:  lists.NewLoggedListManager(lists.NewPersistentListManager(manager, store, appLog), appLog),
 		}
 	} else {
 		loader := infrapacket.NewEbpfLoader()
@@ -83,8 +83,8 @@ func main() {
 		if err != nil {
 			log.Fatalf("main: start packet app: %v", err)
 		}
-		lists.RestorePersistentLists(runtime.Lists, store)
-		runtime.Lists = lists.NewPersistentListManager(runtime.Lists, store)
+		lists.RestorePersistentLists(runtime.Lists, store, appLog)
+		runtime.Lists = lists.NewLoggedListManager(lists.NewPersistentListManager(runtime.Lists, store, appLog), appLog)
 	}
 
 	clk := clock.New(cfg.Server.Timezone)
@@ -100,7 +100,7 @@ func main() {
 	)
 	dispatcher.Start(ctx)
 
-	server := infrahttp.NewServer(cfg.ServerAddr(), "./dist", networkInterface, leaseFile, runtime.Lists, sse, metricsService, systemService, *mockMode)
+	server := infrahttp.NewServer(cfg.ServerAddr(), "./dist", networkInterface, leaseFile, runtime.Lists, sse, metricsService, systemService, *mockMode, appLog, appLog)
 
 	go func() {
 
