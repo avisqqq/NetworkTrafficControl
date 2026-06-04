@@ -58,3 +58,13 @@ export async function fetchAppLogs(limit = 200) {
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
+
+export async function inspectPacket(packet) {
+  const res = await fetch("/packet/inspect", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(packet),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}

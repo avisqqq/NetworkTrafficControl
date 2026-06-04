@@ -3,8 +3,8 @@
   import { fetchAppLogs } from './api.js'
 
   const levelOptions = ['All levels', 'INFO', 'WARN', 'ERROR']
-  const categoryOptions = ['All categories', 'system', 'list', 'storage', 'network']
-  const sourceOptions = ['All sources', 'startup', 'http', 'list_manager', 'storage']
+  const categoryOptions = ['All categories', 'system', 'list', 'storage', 'network', 'inspect']
+  const sourceOptions = ['All sources', 'startup', 'http', 'list_manager', 'storage', 'inspection']
 
   let rows = []
   let loading = false
@@ -14,6 +14,7 @@
   let levelOpen = false
   let categoryOpen = false
   let sourceOpen = false
+  let expandedRows = new Set()
 
   let startDraft = '2026-06-03'
   let endDraft = '2026-06-04'
@@ -44,6 +45,49 @@
       hour: '2-digit',
       minute: '2-digit',
     }).format(new Date(value))
+  }
+
+  function formatCompactDateTime(value) {
+    return new Intl.DateTimeFormat(undefined, {
+      hour: '2-digit',
+      minute: '2-digit',
+      second: '2-digit',
+      hour12: false,
+    }).format(new Date(value))
+  }
+
+  function formatMetadata(value) {
+    if (!value) return ''
+    try {
+      return JSON.stringify(JSON.parse(value), null, 2)
+    } catch {
+      return value
+    }
+  }
+
+  function logDetails(row) {
+    return [
+      ['ID', row.id],
+      ['Date', formatDateTime(row.time)],
+      ['Level', row.level],
+      ['Category', row.category],
+      ['Event', row.event],
+      ['Message', row.message],
+      ['Entity', row.entityType],
+      ['Target', row.target],
+      ['Actor', row.actor],
+      ['Source', row.source],
+    ].filter(([, value]) => value !== undefined && value !== null && value !== '')
+  }
+
+  function toggleRow(id) {
+    const next = new Set(expandedRows)
+    if (next.has(id)) {
+      next.delete(id)
+    } else {
+      next.add(id)
+    }
+    expandedRows = next
   }
 
   async function loadLogs() {
@@ -172,40 +216,65 @@
       <thead>
         <tr>
           <th class="expand-col"></th>
-          <th>ID</th>
           <th>Date</th>
           <th>Level</th>
-          <th>Category</th>
           <th>Event</th>
           <th>Message</th>
-          <th>Entity</th>
           <th>Target</th>
-          <th>Actor</th>
           <th>Source</th>
-          <th>Metadata</th>
         </tr>
       </thead>
       <tbody>
         {#each filteredRows as row}
           <tr>
             <td class="expand-col">
-              <span class:level-dot={true} class:info={row.level === 'INFO'} class:warn={row.level === 'WARN'} class:error={row.level === 'ERROR'}></span>
+              <div class="log-info-wrap">
+                <button
+                  class="log-info-btn"
+                  class:expanded={expandedRows.has(row.id)}
+                  type="button"
+                  aria-label={`Show details for log ${row.id}`}
+                  aria-expanded={expandedRows.has(row.id)}
+                  on:click={() => toggleRow(row.id)}
+                >
+                  <span class="log-arrow"></span>
+                </button>
+              </div>
             </td>
-            <td>{row.id}</td>
-            <td>{formatDateTime(row.time)}</td>
-            <td>{row.level}</td>
-            <td>{row.category}</td>
+            <td>{formatCompactDateTime(row.time)}</td>
+            <td><span class="audit-level-pill {(row.level || '').toLowerCase()}">{row.level}</span></td>
             <td>{row.event}</td>
             <td>{row.message}</td>
-            <td>{row.entityType}</td>
-            <td>{row.target}</td>
-            <td>{row.actor}</td>
+            <td>{row.target || row.entityType || '—'}</td>
             <td>{row.source}</td>
-            <td>{row.metadata}</td>
           </tr>
+          {#if expandedRows.has(row.id)}
+            <tr class="log-expanded-row">
+              <td></td>
+              <td colspan="6">
+                <div class="log-expanded-panel">
+                  <div class="log-detail-head">
+                    <span class:level-dot={true} class:info={row.level === 'INFO'} class:warn={row.level === 'WARN'} class:error={row.level === 'ERROR'}></span>
+                    <div>
+                      <div class="popover-title">Log #{row.id}</div>
+                      <div class="log-detail-subtitle">{row.category} · {row.event}</div>
+                    </div>
+                  </div>
+                  <div class="log-detail-grid">
+                    {#each logDetails(row) as detail}
+                      <span>{detail[0]}</span><strong>{detail[1]}</strong>
+                    {/each}
+                  </div>
+                  {#if row.metadata}
+                    <pre class="log-metadata">{formatMetadata(row.metadata)}</pre>
+                  {/if}
+                </div>
+              </td>
+            </tr>
+          {/if}
         {:else}
           <tr>
-            <td colspan="11" class="audit-empty">{loading ? 'Loading logs...' : 'No events in this range'}</td>
+            <td colspan="7" class="audit-empty">{loading ? 'Loading logs...' : 'No events in this range'}</td>
           </tr>
         {/each}
       </tbody>

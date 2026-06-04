@@ -21,6 +21,7 @@ const (
 	CategoryFirewall Category = "firewall"
 	CategoryStorage  Category = "storage"
 	CategoryNetwork  Category = "network"
+	CategoryInspect  Category = "inspect"
 )
 
 const (
@@ -38,6 +39,11 @@ const (
 
 	EventAPIError     Event = "api.error"
 	EventStorageError Event = "storage.error"
+
+	EventPacketInspectRequested Event = "packet.inspect.requested"
+	EventGeoLookupSkipped       Event = "geo.lookup.skipped"
+	EventGeoLookupSucceeded     Event = "geo.lookup.succeeded"
+	EventGeoLookupFailed        Event = "geo.lookup.failed"
 )
 
 const (
@@ -52,6 +58,7 @@ const (
 	SourceEbpf        Source = "ebpf"
 	SourceStorage     Source = "storage"
 	SourceListManager Source = "list_manager"
+	SourceInspection  Source = "inspection"
 )
 
 const (
@@ -59,6 +66,7 @@ const (
 	EntityTypeCIDR      EntityType = "cidr"
 	EntityTypeInterface EntityType = "interface"
 	EntityTypeDevice    EntityType = "device"
+	EntityTypePacket    EntityType = "packet"
 )
 
 type AppLog struct {

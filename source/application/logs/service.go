@@ -2,7 +2,10 @@ package logs
 
 import (
 	"context"
+	"encoding/json"
+	"ntc/source/application/inspection"
 	domain "ntc/source/domain/logs"
+	"strconv"
 	"time"
 )
 
@@ -127,6 +130,126 @@ func (s *Service) APIError(ctx context.Context, method, path string, status int,
 		Actor:    domain.ActorAPI,
 		Source:   domain.SourceHTTP,
 	})
+}
+
+func (s *Service) PacketInspectRequested(ctx context.Context, req inspection.PacketRequest) {
+	_, _ = s.Add(ctx, domain.AppLog{
+		Level:      domain.LevelInfo,
+		Category:   domain.CategoryInspect,
+		Event:      domain.EventPacketInspectRequested,
+		Message:    "packet inspect requested",
+		EntityType: domain.EntityTypePacket,
+		EntityID:   strconv.FormatUint(req.Seq, 10),
+		Actor:      domain.ActorAPI,
+		Source:     domain.SourceInspection,
+		MetadataJSON: metadataJSON(map[string]any{
+			"seq":       req.Seq,
+			"src":       req.Src,
+			"dst":       req.Dst,
+			"src_port":  req.SrcPort,
+			"dst_port":  req.DstPort,
+			"proto":     req.Proto,
+			"action":    req.Action,
+			"direction": req.Direction,
+		}),
+	})
+}
+
+func (s *Service) GeoLookupSkipped(ctx context.Context, endpoint, ip string, port uint16, proto, scope string, warn bool) {
+	level := domain.LevelInfo
+	if warn {
+		level = domain.LevelWarn
+	}
+
+	message := "geo lookup skipped: " + scope
+	if warn && scope == "Public internet" {
+		message = "geo lookup skipped: provider not configured"
+	}
+
+	_, _ = s.Add(ctx, domain.AppLog{
+		Level:      level,
+		Category:   domain.CategoryInspect,
+		Event:      domain.EventGeoLookupSkipped,
+		Message:    message,
+		EntityType: domain.EntityTypeIP,
+		EntityID:   ip,
+		Actor:      domain.ActorAPI,
+		Source:     domain.SourceInspection,
+		MetadataJSON: metadataJSON(map[string]any{
+			"ip":       ip,
+			"port":     port,
+			"proto":    proto,
+			"scope":    scope,
+			"endpoint": endpoint,
+		}),
+	})
+}
+
+func (s *Service) GeoLookupFailed(ctx context.Context, endpoint, ip string, port uint16, proto, scope, provider string, err error) {
+	if err == nil {
+		return
+	}
+
+	_, _ = s.Add(ctx, domain.AppLog{
+		Level:      domain.LevelWarn,
+		Category:   domain.CategoryInspect,
+		Event:      domain.EventGeoLookupFailed,
+		Message:    "geo lookup failed: " + err.Error(),
+		EntityType: domain.EntityTypeIP,
+		EntityID:   ip,
+		Actor:      domain.ActorAPI,
+		Source:     domain.SourceInspection,
+		MetadataJSON: metadataJSON(map[string]any{
+			"ip":       ip,
+			"port":     port,
+			"proto":    proto,
+			"scope":    scope,
+			"endpoint": endpoint,
+			"provider": provider,
+			"error":    err.Error(),
+		}),
+	})
+}
+
+func (s *Service) GeoLookupSucceeded(ctx context.Context, endpoint, ip string, port uint16, proto, scope string, geo inspection.GeoInfo) {
+	_, _ = s.Add(ctx, domain.AppLog{
+		Level:      domain.LevelInfo,
+		Category:   domain.CategoryInspect,
+		Event:      domain.EventGeoLookupSucceeded,
+		Message:    "geo lookup succeeded: " + ip,
+		EntityType: domain.EntityTypeIP,
+		EntityID:   ip,
+		Actor:      domain.ActorAPI,
+		Source:     domain.SourceInspection,
+		MetadataJSON: metadataJSON(map[string]any{
+			"ip":           ip,
+			"port":         port,
+			"proto":        proto,
+			"scope":        scope,
+			"endpoint":     endpoint,
+			"provider":     geo.Provider,
+			"country":      geo.Country,
+			"country_code": geo.CountryCode,
+			"as":           geo.AS,
+			"as_name":      geo.ASName,
+			"isp":          geo.ISP,
+			"proxy":        geo.Proxy,
+			"hosting":      geo.Hosting,
+			"mobile":       geo.Mobile,
+		}),
+	})
+}
+
+func metadataJSON(metadata map[string]any) string {
+	if len(metadata) == 0 {
+		return ""
+	}
+
+	data, err := json.Marshal(metadata)
+	if err != nil {
+		return ""
+	}
+	return string(data)
 }
 
 func listEvent(list, action string) domain.Event {

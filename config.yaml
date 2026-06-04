@@ -20,6 +20,12 @@ persistence:
 
 app_logs:
   path: ./data/app_logs.db
+
+geo:
+  enabled: true
+  provider: ip-api
+  timeout_seconds: 2
+  cache_ttl_seconds: 86400
 # alerts:
 #   telegram:
 #     bot_token: ""
