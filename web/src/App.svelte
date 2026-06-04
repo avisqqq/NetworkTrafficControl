@@ -5,6 +5,8 @@
   import ListPanel from './lib/ListPanel.svelte'
   import NetworkDevices from './lib/NetworkDevices.svelte'
   import MetricsView from './lib/MetricsView.svelte'
+  import SystemMonitor from './lib/SystemMonitor.svelte'
+  import AuditLogs from './lib/AuditLogs.svelte'
   import { fetchList, fetchLocalNets, fetchMetricsText } from './lib/api.js'
   import { fitPopover } from './lib/popover.js'
 
@@ -14,6 +16,7 @@
   let localNetsError = ''
   let overviewMetrics = ''
   let listCounts = { black: 0, white: 0, local: 0 }
+  let selectedPacket = null
   const currentHost = window.location.hostname || 'localhost'
   const grafanaBase = `http://${currentHost}:3000/d`
   const victoriaBase = `http://${currentHost}:8428/vmui/`
@@ -221,8 +224,8 @@
   </main>
 {:else if activeView === 'live'}
   <main class="split container">
-    <ListPanel />
-    <EventTable />
+    <ListPanel bind:selectedPacket />
+    <EventTable bind:selectedPacket />
   </main>
 {:else if activeView === 'hostnames'}
   <main class="container page">
@@ -230,4 +233,8 @@
   </main>
 {:else if activeView === 'metrics'}
   <MetricsView bind:metricsText={overviewMetrics} />
+{:else if activeView === 'system'}
+  <SystemMonitor />
+{:else if activeView === 'logs'}
+  <AuditLogs />
 {/if}
