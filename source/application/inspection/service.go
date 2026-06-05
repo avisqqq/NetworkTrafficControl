@@ -19,15 +19,21 @@ type Logger interface {
 	GeoLookupSucceeded(ctx context.Context, endpoint, ip string, port uint16, proto, scope string, geo GeoInfo)
 }
 
+type GeoCache interface {
+	SaveGeo(ctx context.Context, ip string, geo GeoInfo) error
+}
+
 type Service struct {
 	provider GeoProvider
 	logger   Logger
+	cache    GeoCache
 }
 
-func NewService(provider GeoProvider, logger Logger) *Service {
+func NewService(provider GeoProvider, logger Logger, cache GeoCache) *Service {
 	return &Service{
 		provider: provider,
 		logger:   logger,
+		cache:    cache,
 	}
 }
 
@@ -82,6 +88,9 @@ func (s *Service) inspectEndpoint(ctx context.Context, ip string, port uint16, p
 			}
 		} else {
 			geo = data
+			if s.cache != nil {
+				_ = s.cache.SaveGeo(ctx, ip, geo)
+			}
 			if s.logger != nil {
 				s.logger.GeoLookupSucceeded(ctx, endpointName(source), ip, port, proto, scope, geo)
 			}

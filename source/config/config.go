@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"gopkg.in/yaml.v3"
 )
@@ -13,6 +14,7 @@ type Config struct {
 	Persistence PersistenceConfig `yaml:"persistence"`
 	AppLogs     AppLogsConfig     `yaml:"app_logs"`
 	Geo         GeoConfig         `yaml:"geo"`
+	Analytics   AnalyticsConfig   `yaml:"analytics"`
 }
 
 type PersistenceConfig struct {
@@ -28,6 +30,10 @@ type GeoConfig struct {
 	Provider        string `yaml:"provider"`
 	TimeoutSeconds  int    `yaml:"timeout_seconds"`
 	CacheTTLSeconds int    `yaml:"cache_ttl_seconds"`
+}
+
+type AnalyticsConfig struct {
+	Path string `yaml:"path"`
 }
 
 type ServerConfig struct {
@@ -66,14 +72,22 @@ var defaults = Config{
 		TimeoutSeconds:  2,
 		CacheTTLSeconds: 86400,
 	},
+	Analytics: AnalyticsConfig{
+		Path: "./data/analytics.db",
+	},
 }
 
 func Load(path string) (*Config, error) {
 	cfg := defaults
+	baseDir, err := configBaseDir(path)
+	if err != nil {
+		return nil, err
+	}
 
 	data, err := os.ReadFile(path)
 	if err != nil {
 		if os.IsNotExist(err) {
+			resolvePaths(&cfg, baseDir)
 			return &cfg, nil
 		}
 		return nil, fmt.Errorf("read config %s: %w", path, err)
@@ -83,5 +97,31 @@ func Load(path string) (*Config, error) {
 		return nil, fmt.Errorf("parse config %s: %w", path, err)
 	}
 
+	resolvePaths(&cfg, baseDir)
 	return &cfg, nil
+}
+
+func configBaseDir(path string) (string, error) {
+	if path == "" {
+		path = "."
+	}
+
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return "", fmt.Errorf("resolve config path %s: %w", path, err)
+	}
+	return filepath.Dir(abs), nil
+}
+
+func resolvePaths(cfg *Config, baseDir string) {
+	cfg.Persistence.Path = resolvePath(baseDir, cfg.Persistence.Path)
+	cfg.AppLogs.Path = resolvePath(baseDir, cfg.AppLogs.Path)
+	cfg.Analytics.Path = resolvePath(baseDir, cfg.Analytics.Path)
+}
+
+func resolvePath(baseDir, path string) string {
+	if path == "" || filepath.IsAbs(path) {
+		return path
+	}
+	return filepath.Join(baseDir, path)
 }

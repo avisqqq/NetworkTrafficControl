@@ -41,7 +41,16 @@
   }
 </script>
 
-<div class="table-card" on:scroll={handleScroll}>
+<div
+  class="table-card"
+  role="region"
+  aria-label="Live traffic events"
+  on:mouseenter={holdStream}
+  on:mouseleave={releaseStream}
+  on:focusin={holdStream}
+  on:focusout={releaseStream}
+  on:scroll={handleScroll}
+>
   <table class="table">
     <thead>
       <tr>
@@ -59,14 +68,7 @@
         <tr class:selected-packet={selectedPacket?.seq === e.seq}>
           <td class="right muted packet-info-cell">
             <span>{e.seq}</span>
-            <span
-              class="packet-info-wrap"
-              role="group"
-              on:mouseenter={holdStream}
-              on:mouseleave={releaseStream}
-              on:focusin={holdStream}
-              on:focusout={releaseStream}
-            >
+            <span class="packet-info-wrap" role="group">
               <button class="packet-info-btn" type="button" aria-label="Open packet details" on:click={() => selectPacket(e)}>i</button>
             </span>
           </td>

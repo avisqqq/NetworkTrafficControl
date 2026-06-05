@@ -2,6 +2,7 @@ package network
 
 import (
 	"bufio"
+	"errors"
 	"net"
 	"ntc/source/domain/packet"
 	"os"
@@ -23,7 +24,7 @@ func ReadDNSMasqLeases(path string) ([]NetworkDevice, error) {
 	scanner := bufio.NewScanner(file)
 	for scanner.Scan() {
 		fields := strings.Fields(scanner.Text())
-		if len(fields) == 0 {
+		if len(fields) < 4 {
 			continue
 		}
 
@@ -115,9 +116,12 @@ func isNeighborState(s string) bool {
 
 func ReadDevices(iface, path string) ([]NetworkDevice, error) {
 	leases, leasesErr := ReadDNSMasqLeases(path)
-	nieghbors, nieghErr := ReadNeighbors(iface)
+	neighbors, neighErr := ReadNeighbors(iface)
 
-	if leasesErr != nil && nieghErr != nil {
+	if leasesErr != nil && neighErr != nil {
+		if errors.Is(leasesErr, os.ErrNotExist) {
+			return []NetworkDevice{}, nil
+		}
 		return nil, leasesErr
 	}
 
@@ -130,7 +134,7 @@ func ReadDevices(iface, path string) ([]NetworkDevice, error) {
 		merged[key] = d
 		indexDevice(byIP, byMAC, key, d)
 	}
-	for _, d := range nieghbors {
+	for _, d := range neighbors {
 		key := knownDeviceKey(byIP, byMAC, d)
 		if key == "" {
 			key = deviceKey(d)

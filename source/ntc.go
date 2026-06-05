@@ -4,6 +4,7 @@ import (
 	"context"
 	"flag"
 	"log"
+	appAnalytics "ntc/source/application/analytics"
 	"ntc/source/application/clock"
 	"ntc/source/application/inspection"
 	"ntc/source/application/lists"
@@ -63,13 +64,15 @@ func main() {
 	appLog.ServiceStarted(ctx)
 	defer stop()
 
+	localCIDRs, err := appNetwork.LocalCIDRs(cfg.Network.CIDRs, networkInterface)
+	if err != nil {
+		log.Printf("network: local cidrs unavailable: %v", err)
+		localCIDRs = cfg.Network.CIDRs
+	}
+
 	var runtime *packetapp.Runtime
 	if *mockMode {
 		log.Println("main: starting in mock mode")
-		localCIDRs, err := appNetwork.LocalCIDRs(cfg.Network.CIDRs, networkInterface)
-		if err != nil {
-			log.Printf("network: local cidrs unavailable in mock mode: %v", err)
-		}
 		manager := mock.NewManager(localCIDRs)
 		lists.RestorePersistentLists(manager, store, appLog)
 		runtime = &packetapp.Runtime{
@@ -81,7 +84,7 @@ func main() {
 		defer loader.Close()
 
 		packetApp := packetapp.NewPacketApp(loader)
-		runtime, err = packetApp.Start(ctx, "tc_filter.bpf.o", networkInterface, cfg.Network.CIDRs)
+		runtime, err = packetApp.Start(ctx, "tc_filter.bpf.o", networkInterface, localCIDRs)
 		if err != nil {
 			log.Fatalf("main: start packet app: %v", err)
 		}
@@ -94,6 +97,13 @@ func main() {
 	sseConsumer := infrahttp.NewPacketSseConsumer(sse, clk)
 	metricsService := traffic.NewService()
 	metricsService.Start(ctx)
+	analyticsDb, err := infraStorage.OpenAnalytics(cfg.Analytics.Path)
+	if err != nil {
+		log.Fatalf("analytics: %v", err)
+	}
+	analyticsRepo := infraLog.NewAnalyticsRepository(analyticsDb)
+	analyticsService := appAnalytics.NewService(analyticsRepo, localCIDRs)
+	analyticsService.Start(ctx)
 	systemService := appsystem.NewService(infrasystem.NewSystemCollector())
 	var geoProvider inspection.GeoProvider
 	if cfg.Geo.Enabled && cfg.Geo.Provider == "ip-api" {
@@ -102,15 +112,16 @@ func main() {
 			time.Duration(cfg.Geo.CacheTTLSeconds)*time.Second,
 		)
 	}
-	inspectionService := inspection.NewService(geoProvider, appLog)
+	inspectionService := inspection.NewService(geoProvider, appLog, analyticsRepo)
 	dispatcher := packetstream.NewDispatcher(
 		runtime.Reader,
 		sseConsumer,
 		metricsService,
+		analyticsService,
 	)
 	dispatcher.Start(ctx)
 
-	server := infrahttp.NewServer(cfg.ServerAddr(), "./dist", networkInterface, leaseFile, runtime.Lists, sse, metricsService, systemService, *mockMode, appLog, appLog, inspectionService)
+	server := infrahttp.NewServer(cfg.ServerAddr(), "./dist", networkInterface, leaseFile, runtime.Lists, sse, metricsService, systemService, *mockMode, appLog, appLog, inspectionService, analyticsService)
 
 	go func() {
 
