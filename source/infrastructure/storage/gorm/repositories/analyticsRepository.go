@@ -70,42 +70,59 @@ func (r *AnalyticsRepository) SaveGeo(ctx context.Context, ip string, geo inspec
 }
 
 func (r *AnalyticsRepository) RecordPacket(stat app.PacketStat) error {
+	return r.RecordPackets([]app.PacketStat{stat})
+}
+
+func (r *AnalyticsRepository) RecordPackets(stats []app.PacketStat) error {
+	if len(stats) == 0 {
+		return nil
+	}
+
 	return r.db.Transaction(func(tx *gorm.DB) error {
-		host, err := upsertIP(tx, stat.HostIP, stat.HostScope, stat.SeenAt)
-		if err != nil {
-			return err
-		}
-		if err := upsertHost(tx, stat.HostIP, stat.SeenAt); err != nil {
-			return err
-		}
-
-		peer, err := upsertIP(tx, stat.PeerIP, stat.PeerScope, stat.SeenAt)
-		if err != nil {
-			return err
-		}
-
-		service, err := upsertService(tx, stat.Proto, stat.Port, stat.Service)
-		if err != nil {
-			return err
-		}
-
-		if err := upsertPeerCounter(tx, host.ID, peer.ID, service.ID, stat); err != nil {
-			return err
-		}
-		if err := upsertServiceCounter(tx, host.ID, service.ID, stat); err != nil {
-			return err
-		}
-		if err := upsertCountryCounter(tx, host.ID, peer.ID, stat); err != nil {
-			return err
-		}
-		if stat.Action == "DROP" || stat.Action == "ONLY_LOCAL_DROP" {
-			if err := upsertBlockedCounter(tx, host.ID, peer.ID, service.ID, stat); err != nil {
+		for _, stat := range stats {
+			if err := r.recordPacketTx(tx, stat); err != nil {
 				return err
 			}
 		}
-
 		return nil
 	})
+}
+
+func (r *AnalyticsRepository) recordPacketTx(tx *gorm.DB, stat app.PacketStat) error {
+	host, err := upsertIP(tx, stat.HostIP, stat.HostScope, stat.SeenAt)
+	if err != nil {
+		return err
+	}
+	if err := upsertHost(tx, stat.HostIP, stat.SeenAt); err != nil {
+		return err
+	}
+
+	peer, err := upsertIP(tx, stat.PeerIP, stat.PeerScope, stat.SeenAt)
+	if err != nil {
+		return err
+	}
+
+	service, err := upsertService(tx, stat.Proto, stat.Port, stat.Service)
+	if err != nil {
+		return err
+	}
+
+	if err := upsertPeerCounter(tx, host.ID, peer.ID, service.ID, stat); err != nil {
+		return err
+	}
+	if err := upsertServiceCounter(tx, host.ID, service.ID, stat); err != nil {
+		return err
+	}
+	if err := upsertCountryCounter(tx, host.ID, peer.ID, stat); err != nil {
+		return err
+	}
+	if stat.Action == "DROP" || stat.Action == "ONLY_LOCAL_DROP" {
+		if err := upsertBlockedCounter(tx, host.ID, peer.ID, service.ID, stat); err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
 func (r *AnalyticsRepository) Summary(limit int) (app.Summary, error) {

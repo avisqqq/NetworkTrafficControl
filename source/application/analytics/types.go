@@ -100,6 +100,7 @@ type BlockedSummary struct {
 
 type Repository interface {
 	RecordPacket(stat PacketStat) error
+	RecordPackets(stats []PacketStat) error
 	Summary(limit int) (Summary, error)
 	HostSummary(ip string, limit int) (Summary, error)
 }

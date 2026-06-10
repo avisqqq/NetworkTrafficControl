@@ -2,6 +2,7 @@ package analytics
 
 import (
 	"context"
+	"log"
 	"net/netip"
 	"strconv"
 	"strings"
@@ -13,20 +14,28 @@ import (
 )
 
 type Service struct {
-	repo          Repository
-	localNets     []netip.Prefix
-	mu            sync.Mutex
-	pending       map[string]PacketStat
-	flushInterval time.Duration
-	now           func() time.Time
+	repo                     Repository
+	localNets                []netip.Prefix
+	mu                       sync.Mutex
+	pending                  map[string]PacketStat
+	flushInterval            time.Duration
+	consecutiveWriteFailures int
+	writesDisabled           bool
+	pendingLimitLogged       bool
+	now                      func() time.Time
 }
+
+const (
+	maxConsecutiveFatalSQLiteWriteFailures = 1
+	maxPendingStats                        = 10_000
+)
 
 func NewService(repo Repository, localCIDRs []string) *Service {
 	return &Service{
 		repo:          repo,
 		localNets:     parsePrefixes(localCIDRs),
 		pending:       make(map[string]PacketStat),
-		flushInterval: time.Second,
+		flushInterval: 30 * time.Second,
 		now:           func() time.Time { return time.Now().UTC() },
 	}
 }
@@ -93,12 +102,10 @@ func (s *Service) Consume(p packet.Packet) {
 }
 
 func (s *Service) Summary(limit int) (Summary, error) {
-	s.flush()
 	return s.repo.Summary(limit)
 }
 
 func (s *Service) HostSummary(ip string, limit int) (Summary, error) {
-	s.flush()
 	return s.repo.HostSummary(ip, limit)
 }
 
@@ -106,9 +113,24 @@ func (s *Service) addPending(stat PacketStat) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	if s.writesDisabled {
+		return
+	}
+
+	s.addPendingLocked(stat)
+}
+
+func (s *Service) addPendingLocked(stat PacketStat) {
 	key := stat.key()
 	existing, ok := s.pending[key]
 	if !ok {
+		if len(s.pending) >= maxPendingStats {
+			if !s.pendingLimitLogged {
+				log.Printf("analytics: dropping new packet stats because pending analytics buffer reached %d keys", maxPendingStats)
+				s.pendingLimitLogged = true
+			}
+			return
+		}
 		s.pending[key] = stat
 		return
 	}
@@ -121,14 +143,28 @@ func (s *Service) addPending(stat PacketStat) {
 
 func (s *Service) flush() {
 	batch := s.drain()
-	for _, stat := range batch {
-		_ = s.repo.RecordPacket(stat)
+	if len(batch) == 0 {
+		return
 	}
+
+	if err := s.repo.RecordPackets(batch); err != nil {
+		s.handleFlushError(batch, err)
+		return
+	}
+
+	s.mu.Lock()
+	s.consecutiveWriteFailures = 0
+	s.mu.Unlock()
 }
 
 func (s *Service) drain() []PacketStat {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	if s.writesDisabled {
+		s.pending = make(map[string]PacketStat)
+		return nil
+	}
 
 	if len(s.pending) == 0 {
 		return nil
@@ -140,6 +176,47 @@ func (s *Service) drain() []PacketStat {
 	}
 	s.pending = make(map[string]PacketStat)
 	return batch
+}
+
+func (s *Service) handleFlushError(batch []PacketStat, err error) {
+	log.Printf("analytics: failed to persist %d packet stats: %v", len(batch), err)
+
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	if isFatalSQLiteWriteFailure(err) {
+		s.consecutiveWriteFailures++
+		if s.consecutiveWriteFailures >= maxConsecutiveFatalSQLiteWriteFailures {
+			s.writesDisabled = true
+			s.pending = make(map[string]PacketStat)
+			log.Printf("analytics: disabling analytics writes after %d fatal SQLite write failure(s): %v", s.consecutiveWriteFailures, err)
+			return
+		}
+	} else if isTemporarySQLiteWriteFailure(err) {
+		s.consecutiveWriteFailures = 0
+	}
+
+	for _, stat := range batch {
+		s.addPendingLocked(stat)
+	}
+}
+
+func isFatalSQLiteWriteFailure(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "input/output error") ||
+		strings.Contains(msg, "disk i/o error")
+}
+
+func isTemporarySQLiteWriteFailure(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	return strings.Contains(strings.ToLower(err.Error()), "database is locked")
 }
 
 func (p PacketStat) key() string {
