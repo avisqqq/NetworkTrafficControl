@@ -4,13 +4,14 @@ import (
 	"net/http"
 	"time"
 
+	"ntc/source/application/analytics"
 	"ntc/source/application/inspection"
 	"ntc/source/application/lists"
 	appsystem "ntc/source/application/system"
 	"ntc/source/infrastructure/http/handlers"
 )
 
-func NewServer(addr, webDir, iface, leaseFile string, mgr lists.ListManager, sse *SSE, metrics MetricsProvider, system *appsystem.Service, mockMode bool, appLogs handlers.AppLogProvider, logger APIErrorLogger, inspector *inspection.Service) *http.Server {
+func NewServer(addr, webDir, iface, leaseFile string, mgr lists.ListManager, sse *SSE, metrics MetricsProvider, system *appsystem.Service, mockMode bool, appLogs handlers.AppLogProvider, logger APIErrorLogger, inspector *inspection.Service, analytics *analytics.Service) *http.Server {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/events", sse.Handler)
@@ -25,6 +26,8 @@ func NewServer(addr, webDir, iface, leaseFile string, mgr lists.ListManager, sse
 	mux.HandleFunc("/metrics", metricsHandler(metrics))
 	mux.HandleFunc("/app/logs", handlers.AppLogsHandler(appLogs))
 	mux.HandleFunc("/packet/inspect", handlers.PacketInspectHandler(inspector))
+	mux.HandleFunc("/analysis/summary", handlers.AnalysisSummaryHandler(analytics))
+	mux.HandleFunc("/analysis/host", handlers.AnalysisHostHandler(analytics))
 	mux.HandleFunc("/system/events", handlers.SystemEventsHandler(system))
 	mux.Handle("/", http.FileServer(http.Dir(webDir)))
 	return &http.Server{

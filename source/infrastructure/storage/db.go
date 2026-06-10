@@ -11,6 +11,23 @@ import (
 )
 
 func Open(path string) (*gorm.DB, error) {
+	return open(path, &models.AppLog{})
+}
+
+func OpenAnalytics(path string) (*gorm.DB, error) {
+	return open(path,
+		&models.AnalyticsHost{},
+		&models.AnalyticsIP{},
+		&models.AnalyticsIPEnrichment{},
+		&models.AnalyticsService{},
+		&models.HostPeerCounter{},
+		&models.HostCountryCounter{},
+		&models.HostServiceCounter{},
+		&models.BlockedPeerCounter{},
+	)
+}
+
+func open(path string, migrate ...any) (*gorm.DB, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return nil, err
 	}
@@ -20,7 +37,7 @@ func Open(path string) (*gorm.DB, error) {
 		return nil, err
 	}
 
-	if err := db.AutoMigrate(&models.AppLog{}); err != nil {
+	if err := db.AutoMigrate(migrate...); err != nil {
 		return nil, err
 	}
 

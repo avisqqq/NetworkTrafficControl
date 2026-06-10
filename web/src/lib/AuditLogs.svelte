@@ -16,8 +16,12 @@
   let sourceOpen = false
   let expandedRows = new Set()
 
-  let startDraft = '2026-06-03'
-  let endDraft = '2026-06-04'
+  const today = new Date()
+  const defaultEndDate = formatDateInput(today)
+  const defaultStartDate = formatDateInput(new Date(today.getTime() - 6 * 24 * 60 * 60 * 1000))
+
+  let startDraft = defaultStartDate
+  let endDraft = defaultEndDate
   let startDate = startDraft
   let endDate = endDraft
   let levelFilter = 'All levels'
@@ -32,6 +36,10 @@
       && (categoryFilter === 'All categories' || row.category === categoryFilter)
       && (sourceFilter === 'All sources' || row.source === sourceFilter)
   })
+
+  function formatDateInput(value) {
+    return value.toISOString().slice(0, 10)
+  }
 
   function labelDate(value) {
     return value.replaceAll('-', '/')

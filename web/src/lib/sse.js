@@ -1,4 +1,5 @@
 import { writable } from 'svelte/store'
+import { fetchList } from './api.js'
 
 export const connected = writable(false)
 export const events = writable([])
@@ -9,6 +10,7 @@ let filter = ''
 let allEvents = []
 let pendingEvents = []
 let flushTimer = null
+let whitelist = new Set()
 const flushIntervalMs = 100
 
 export const capStore = writable(300)
@@ -31,6 +33,7 @@ filterStore.subscribe(v => {
 })
 
 function matches(e) {
+  if (isWhitelisted(e)) return false
   if (!filter) return true
   const q = filter.toLowerCase()
   return (
@@ -44,6 +47,30 @@ function matches(e) {
     String(e.dst_port || '').includes(q) ||
     String(e.pkt_size || '').includes(q)
   )
+}
+
+function normalizeIP(value) {
+  return String(value || '').trim().toLowerCase()
+}
+
+function isWhitelisted(e) {
+  return whitelist.has(normalizeIP(e.src)) || whitelist.has(normalizeIP(e.dst))
+}
+
+function applyWhitelist() {
+  pendingEvents = pendingEvents.filter(e => !isWhitelisted(e))
+  allEvents = allEvents.filter(e => !isWhitelisted(e))
+  events.set(allEvents)
+}
+
+export async function refreshWhitelist() {
+  try {
+    const rows = await fetchList('white')
+    whitelist = new Set((rows || []).map(row => normalizeIP(row.ip)).filter(Boolean))
+    applyWhitelist()
+  } catch {
+    whitelist = new Set()
+  }
 }
 
 export function clearEvents() {
@@ -81,3 +108,5 @@ es.onmessage = (msg) => {
   if (pendingEvents.length > cap) pendingEvents = pendingEvents.slice(-cap)
   scheduleFlush()
 }
+
+refreshWhitelist()

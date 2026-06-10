@@ -7,6 +7,7 @@
   import MetricsView from './lib/MetricsView.svelte'
   import SystemMonitor from './lib/SystemMonitor.svelte'
   import AuditLogs from './lib/AuditLogs.svelte'
+  import AnalysisSummary from './lib/AnalysisSummary.svelte'
   import { fetchList, fetchLocalNets, fetchMetricsText } from './lib/api.js'
   import { fitPopover } from './lib/popover.js'
 
@@ -17,6 +18,7 @@
   let overviewMetrics = ''
   let listCounts = { black: 0, white: 0, local: 0 }
   let selectedPacket = null
+  let lastActiveView = activeView
   const currentHost = window.location.hostname || 'localhost'
   const grafanaBase = `http://${currentHost}:3000/d`
   const victoriaBase = `http://${currentHost}:8428/vmui/`
@@ -82,6 +84,12 @@
     } finally {
       localNetsLoading = false
     }
+  }
+
+  $: if (activeView !== lastActiveView) {
+    lastActiveView = activeView
+    selectedPacket = null
+    window.scrollTo({ top: 0, left: 0 })
   }
 
   onMount(loadLocalNets)
@@ -233,6 +241,8 @@
   </main>
 {:else if activeView === 'metrics'}
   <MetricsView bind:metricsText={overviewMetrics} />
+{:else if activeView === 'analysis'}
+  <AnalysisSummary />
 {:else if activeView === 'system'}
   <SystemMonitor />
 {:else if activeView === 'logs'}

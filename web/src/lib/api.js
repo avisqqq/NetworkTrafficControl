@@ -68,3 +68,15 @@ export async function inspectPacket(packet) {
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
+
+export async function fetchAnalysisSummary(limit = 50) {
+  const res = await fetch(`/analysis/summary?limit=${encodeURIComponent(limit)}`);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function fetchHostAnalysis(ip, limit = 50) {
+  const res = await fetch(`/analysis/host?ip=${encodeURIComponent(ip)}&limit=${encodeURIComponent(limit)}`);
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}

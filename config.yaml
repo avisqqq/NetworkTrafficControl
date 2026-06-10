@@ -21,6 +21,9 @@ persistence:
 app_logs:
   path: ./data/app_logs.db
 
+analytics:
+  path: ./data/analytics.db
+
 geo:
   enabled: true
   provider: ip-api

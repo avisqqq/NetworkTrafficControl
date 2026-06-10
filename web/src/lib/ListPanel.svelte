@@ -1,6 +1,7 @@
 <script>
-  import { onMount } from 'svelte'
+  import { onMount, tick } from 'svelte'
   import { fetchList, addIP, removeIP, inspectPacket } from './api.js'
+  import { refreshWhitelist } from './sse.js'
 
   export let selectedPacket = null
 
@@ -17,6 +18,12 @@
   let showEmptyPacket = false
   let showEmptySource = false
   let showEmptyDestination = false
+  let blacklistIPs = new Set()
+  let whitelistIPs = new Set()
+  let blacklistStatus = {}
+  let whitelistStatus = {}
+  let updatingListIP = ''
+  let listStatusRevision = 0
 
   const titles = {
     black: 'Blacklist',
@@ -41,11 +48,25 @@
     try {
       const data = await fetchList(listType)
       entries = data ?? []
+      await loadListStatus()
     } catch {
       error = 'Failed to load'
     } finally {
       loading = false
     }
+  }
+
+  async function loadListStatus() {
+    const [blacklist, whitelist] = await Promise.all([
+      fetchList('black'),
+      fetchList('white')
+    ])
+    blacklistIPs = new Set((blacklist || []).map(entry => normalizeIP(entry.ip)).filter(Boolean))
+    whitelistIPs = new Set((whitelist || []).map(entry => normalizeIP(entry.ip)).filter(Boolean))
+    blacklistStatus = statusMap(blacklistIPs)
+    whitelistStatus = statusMap(whitelistIPs)
+    listStatusRevision += 1
+    await refreshWhitelist()
   }
 
   async function handleAdd() {
@@ -124,6 +145,107 @@
     return value || '—'
   }
 
+  function normalizeIP(ip) {
+    return String(ip || '').trim().toLowerCase()
+  }
+
+  function inList(type, ip) {
+    const value = normalizeIP(ip)
+    if (!value) return false
+    return type === 'white' ? whitelistStatus[value] === true : blacklistStatus[value] === true
+  }
+
+  function statusMap(values) {
+    return Object.fromEntries([...values].map(value => [value, true]))
+  }
+
+  function setListMembership(type, ip, active) {
+    const value = normalizeIP(ip)
+    if (!value) return
+
+    const source = type === 'white' ? whitelistIPs : blacklistIPs
+    const next = new Set(source)
+    if (active) next.add(value)
+    else next.delete(value)
+
+    if (type === 'white') {
+      whitelistIPs = next
+      whitelistStatus = { ...whitelistStatus, [value]: active }
+    } else {
+      blacklistIPs = next
+      blacklistStatus = { ...blacklistStatus, [value]: active }
+    }
+    listStatusRevision += 1
+  }
+
+  function listButtonClass(type, ip) {
+    return `ip-list-btn ${type} ${inList(type, ip) ? 'active' : ''}`
+  }
+
+  function paintListButtons(type, ip, active) {
+    const value = normalizeIP(ip)
+    document.querySelectorAll('.ip-list-btn').forEach(button => {
+      if (button.dataset.listType !== type || button.dataset.ip !== value) return
+      button.classList.toggle('active', active)
+      button.dataset.active = String(active)
+      button.style.background = active ? (type === 'white' ? 'rgba(52, 211, 153, .16)' : 'rgba(251, 113, 133, .16)') : ''
+      button.style.borderColor = active ? (type === 'white' ? 'rgba(52, 211, 153, .45)' : 'rgba(251, 113, 133, .45)') : ''
+      button.style.color = active ? (type === 'white' ? 'var(--emerald)' : 'var(--rose)') : ''
+    })
+  }
+
+  async function toggleIPList(type, ip, button) {
+    const value = normalizeIP(ip)
+    if (!value || updatingListIP) return
+
+    updatingListIP = `${type}:${value}`
+    error = ''
+    const nextActive = !inList(type, value)
+    if (button) {
+      button.classList.toggle('active', nextActive)
+      button.dataset.active = String(nextActive)
+      button.style.background = nextActive ? (type === 'white' ? 'rgba(52, 211, 153, .16)' : 'rgba(251, 113, 133, .16)') : ''
+      button.style.borderColor = nextActive ? (type === 'white' ? 'rgba(52, 211, 153, .45)' : 'rgba(251, 113, 133, .45)') : ''
+      button.style.color = nextActive ? (type === 'white' ? 'var(--emerald)' : 'var(--rose)') : ''
+    }
+    paintListButtons(type, value, nextActive)
+    setListMembership(type, value, nextActive)
+    updateVisibleEntries(type, value, nextActive)
+    await tick()
+    try {
+      if (nextActive) await addIP(type, value)
+      else await removeIP(type, value)
+      if (type === 'white') await refreshWhitelist()
+    } catch {
+      if (button) {
+        button.classList.toggle('active', !nextActive)
+        button.dataset.active = String(!nextActive)
+        button.style.background = !nextActive ? (type === 'white' ? 'rgba(52, 211, 153, .16)' : 'rgba(251, 113, 133, .16)') : ''
+        button.style.borderColor = !nextActive ? (type === 'white' ? 'rgba(52, 211, 153, .45)' : 'rgba(251, 113, 133, .45)') : ''
+        button.style.color = !nextActive ? (type === 'white' ? 'var(--emerald)' : 'var(--rose)') : ''
+      }
+      paintListButtons(type, value, !nextActive)
+      setListMembership(type, value, !nextActive)
+      updateVisibleEntries(type, value, !nextActive)
+      error = `Failed to update ${type === 'white' ? 'whitelist' : 'blacklist'}`
+    } finally {
+      updatingListIP = ''
+    }
+  }
+
+  function updateVisibleEntries(type, ip, active) {
+    if (listType !== type) return
+
+    if (active) {
+      if (!entries.some(entry => normalizeIP(entry.ip) === ip)) {
+        entries = [...entries, { ip }]
+      }
+      return
+    }
+
+    entries = entries.filter(entry => normalizeIP(entry.ip) !== ip)
+  }
+
   function hasValue(value) {
     return value !== undefined && value !== null && value !== '' && value !== false
   }
@@ -135,7 +257,7 @@
   function endpointRows(endpoint) {
     if (!endpoint) return []
     return [
-      ['IP', endpoint.ip],
+      ['IP', endpoint.ip, endpoint.ip],
       ['Endpoint', endpoint.endpoint],
       ['Scope', endpoint.scope],
       ['Port', portValue(endpoint.port)],
@@ -171,10 +293,10 @@
       ['Direction', packet.direction],
       ['Protocol', packet.proto],
       ['Action', packet.action],
-      ['Source', endpoint(packet.src, packet.src_port)],
+      ['Source', endpoint(packet.src, packet.src_port), packet.src],
       ['Source port', portValue(packet.src_port)],
       ['Source scope', ipScope(packet.src)],
-      ['Destination', endpoint(packet.dst, packet.dst_port)],
+      ['Destination', endpoint(packet.dst, packet.dst_port), packet.dst],
       ['Destination port', portValue(packet.dst_port)],
       ['Destination scope', ipScope(packet.dst)],
       ['IP version', packet.ip_version],
@@ -312,7 +434,34 @@
         </div>
         <div class="packet-detail-grid">
           {#each visibleRows(packetRows(selectedPacket), showEmptyPacket) as row}
-            <span>{row[0]}</span><strong>{geoValue(row[1])}</strong>
+            <span>{row[0]}</span>
+            <strong class={row[2] ? 'ip-action-value' : ''}>
+              <span>{geoValue(row[1])}</span>
+              {#if row[2]}
+                <span class="ip-list-actions">
+                  <button
+                    class={listButtonClass('white', row[2])}
+                    data-active={inList('white', row[2])}
+                    data-list-type="white"
+                    data-ip={normalizeIP(row[2])}
+                    data-revision={listStatusRevision}
+                    type="button"
+                    title={inList('white', row[2]) ? 'Remove from whitelist' : 'Add to whitelist'}
+                    on:click={(event) => toggleIPList('white', row[2], event.currentTarget)}
+                  >W</button>
+                  <button
+                    class={listButtonClass('black', row[2])}
+                    data-active={inList('black', row[2])}
+                    data-list-type="black"
+                    data-ip={normalizeIP(row[2])}
+                    data-revision={listStatusRevision}
+                    type="button"
+                    title={inList('black', row[2]) ? 'Remove from blacklist' : 'Add to blacklist'}
+                    on:click={(event) => toggleIPList('black', row[2], event.currentTarget)}
+                  >B</button>
+                </span>
+              {/if}
+            </strong>
           {/each}
         </div>
 
@@ -330,7 +479,34 @@
                 </div>
                 <div class="packet-detail-grid inspect-grid">
                   {#each visibleRows(endpointRows(inspectResult.source), showEmptySource) as row}
-                    <span>{row[0]}</span><strong>{geoValue(row[1])}</strong>
+                    <span>{row[0]}</span>
+                    <strong class={row[2] ? 'ip-action-value' : ''}>
+                      <span>{geoValue(row[1])}</span>
+                      {#if row[2]}
+                        <span class="ip-list-actions">
+                          <button
+                            class={listButtonClass('white', row[2])}
+                            data-active={inList('white', row[2])}
+                            data-list-type="white"
+                            data-ip={normalizeIP(row[2])}
+                            data-revision={listStatusRevision}
+                            type="button"
+                            title={inList('white', row[2]) ? 'Remove from whitelist' : 'Add to whitelist'}
+                            on:click={(event) => toggleIPList('white', row[2], event.currentTarget)}
+                          >W</button>
+                          <button
+                            class={listButtonClass('black', row[2])}
+                            data-active={inList('black', row[2])}
+                            data-list-type="black"
+                            data-ip={normalizeIP(row[2])}
+                            data-revision={listStatusRevision}
+                            type="button"
+                            title={inList('black', row[2]) ? 'Remove from blacklist' : 'Add to blacklist'}
+                            on:click={(event) => toggleIPList('black', row[2], event.currentTarget)}
+                          >B</button>
+                        </span>
+                      {/if}
+                    </strong>
                   {/each}
                 </div>
               </div>
@@ -342,7 +518,34 @@
                 </div>
                 <div class="packet-detail-grid inspect-grid">
                   {#each visibleRows(endpointRows(inspectResult.destination), showEmptyDestination) as row}
-                    <span>{row[0]}</span><strong>{geoValue(row[1])}</strong>
+                    <span>{row[0]}</span>
+                    <strong class={row[2] ? 'ip-action-value' : ''}>
+                      <span>{geoValue(row[1])}</span>
+                      {#if row[2]}
+                        <span class="ip-list-actions">
+                          <button
+                            class={listButtonClass('white', row[2])}
+                            data-active={inList('white', row[2])}
+                            data-list-type="white"
+                            data-ip={normalizeIP(row[2])}
+                            data-revision={listStatusRevision}
+                            type="button"
+                            title={inList('white', row[2]) ? 'Remove from whitelist' : 'Add to whitelist'}
+                            on:click={(event) => toggleIPList('white', row[2], event.currentTarget)}
+                          >W</button>
+                          <button
+                            class={listButtonClass('black', row[2])}
+                            data-active={inList('black', row[2])}
+                            data-list-type="black"
+                            data-ip={normalizeIP(row[2])}
+                            data-revision={listStatusRevision}
+                            type="button"
+                            title={inList('black', row[2]) ? 'Remove from blacklist' : 'Add to blacklist'}
+                            on:click={(event) => toggleIPList('black', row[2], event.currentTarget)}
+                          >B</button>
+                        </span>
+                      {/if}
+                    </strong>
                   {/each}
                 </div>
               </div>
