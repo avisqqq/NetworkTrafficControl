@@ -91,7 +91,9 @@ type ollamaChatResponse struct {
 	Message ollamaMessage `json:"message"`
 }
 
-const systemPrompt = "You analyze local network traffic summaries. Return JSON only with keys: summary, risk_level, findings, suspicious_peers, blocked_explanation, recommended_actions. Do not invent facts that are not in the input."
+const systemPrompt = `You analyze local network traffic summaries.
+ Return JSON only with keys: summary, risk_level, findings, suspicious_peers, blocked_explanation, recommended_actions. 
+ Do not invent facts that are not in the input.`
 
 func mustJSON(v any) string {
 	data, err := json.Marshal(v)

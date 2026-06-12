@@ -1,0 +1,823 @@
+openapi: 3.1.0
+info:
+  title: Network Traffic Control API
+  version: 1.0.0
+  description: Import this file into Yaak to create requests for all Network Traffic Control backend endpoints.
+servers:
+  - url: http://localhost:8086
+    description: Local development server
+tags:
+  - name: Events
+  - name: Lists
+  - name: Network
+  - name: Runtime
+  - name: Packet
+  - name: Analytics
+  - name: Logs
+  - name: Metrics
+  - name: System
+paths:
+  /events:
+    get:
+      tags: [Events]
+      summary: Stream packet events
+      description: Server-Sent Events stream of live packet events.
+      responses:
+        "200":
+          description: Packet event stream.
+          content:
+            text/event-stream:
+              schema:
+                type: string
+  /system/events:
+    get:
+      tags: [System]
+      summary: Stream system telemetry
+      description: Server-Sent Events stream of system snapshots.
+      responses:
+        "200":
+          description: System telemetry event stream.
+          content:
+            text/event-stream:
+              schema:
+                type: string
+  /blacklist:
+    get:
+      tags: [Lists]
+      summary: List blacklisted IPs
+      responses:
+        "200":
+          $ref: "#/components/responses/StringList"
+    post:
+      tags: [Lists]
+      summary: Add IP to blacklist
+      requestBody:
+        $ref: "#/components/requestBodies/IPRequest"
+      responses:
+        "200":
+          $ref: "#/components/responses/IPResponse"
+    delete:
+      tags: [Lists]
+      summary: Remove IP from blacklist
+      parameters:
+        - $ref: "#/components/parameters/IPQuery"
+      responses:
+        "200":
+          $ref: "#/components/responses/IPResponse"
+  /whitelist:
+    get:
+      tags: [Lists]
+      summary: List whitelisted IPs
+      responses:
+        "200":
+          $ref: "#/components/responses/StringList"
+    post:
+      tags: [Lists]
+      summary: Add IP to whitelist
+      requestBody:
+        $ref: "#/components/requestBodies/IPRequest"
+      responses:
+        "200":
+          $ref: "#/components/responses/IPResponse"
+    delete:
+      tags: [Lists]
+      summary: Remove IP from whitelist
+      parameters:
+        - $ref: "#/components/parameters/IPQuery"
+      responses:
+        "200":
+          $ref: "#/components/responses/IPResponse"
+  /onlylocal:
+    get:
+      tags: [Lists]
+      summary: List only-local IPs
+      responses:
+        "200":
+          $ref: "#/components/responses/StringList"
+    post:
+      tags: [Lists]
+      summary: Add IP to only-local list
+      requestBody:
+        $ref: "#/components/requestBodies/IPRequest"
+      responses:
+        "200":
+          $ref: "#/components/responses/IPResponse"
+    delete:
+      tags: [Lists]
+      summary: Remove IP from only-local list
+      parameters:
+        - $ref: "#/components/parameters/IPQuery"
+      responses:
+        "200":
+          $ref: "#/components/responses/IPResponse"
+  /network/localnets/v4:
+    get:
+      tags: [Network]
+      summary: List IPv4 local networks
+      responses:
+        "200":
+          $ref: "#/components/responses/StringList"
+    post:
+      tags: [Network]
+      summary: Add IPv4 local network
+      requestBody:
+        $ref: "#/components/requestBodies/CIDRRequest"
+      responses:
+        "200":
+          $ref: "#/components/responses/CIDRResponse"
+    delete:
+      tags: [Network]
+      summary: Remove IPv4 local network
+      parameters:
+        - $ref: "#/components/parameters/CIDRQuery"
+      responses:
+        "200":
+          $ref: "#/components/responses/CIDRResponse"
+  /network/localnets/v6:
+    get:
+      tags: [Network]
+      summary: List IPv6 local networks
+      responses:
+        "200":
+          $ref: "#/components/responses/StringList"
+    post:
+      tags: [Network]
+      summary: Add IPv6 local network
+      requestBody:
+        $ref: "#/components/requestBodies/CIDRRequest"
+      responses:
+        "200":
+          $ref: "#/components/responses/CIDRResponse"
+    delete:
+      tags: [Network]
+      summary: Remove IPv6 local network
+      parameters:
+        - $ref: "#/components/parameters/CIDRQuery"
+      responses:
+        "200":
+          $ref: "#/components/responses/CIDRResponse"
+  /runtime/state:
+    get:
+      tags: [Runtime]
+      summary: Get runtime state
+      responses:
+        "200":
+          description: Runtime state.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/RuntimeState"
+  /network/devices:
+    get:
+      tags: [Network]
+      summary: List discovered network devices
+      responses:
+        "200":
+          description: Network devices.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/NetworkDevice"
+  /metrics:
+    get:
+      tags: [Metrics]
+      summary: Get Prometheus metrics
+      responses:
+        "200":
+          description: Prometheus metrics text.
+          content:
+            text/plain:
+              schema:
+                type: string
+  /app/logs:
+    get:
+      tags: [Logs]
+      summary: List app logs
+      parameters:
+        - $ref: "#/components/parameters/LimitQuery"
+      responses:
+        "200":
+          description: App logs.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/AppLog"
+  /packet/inspect:
+    post:
+      tags: [Packet]
+      summary: Inspect packet metadata
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PacketRequest"
+            examples:
+              egressHttps:
+                value:
+                  seq: 0
+                  time: "2026-06-10T12:00:00Z"
+                  src: 192.168.0.10
+                  dst: 1.1.1.1
+                  src_port: 12345
+                  dst_port: 443
+                  pkt_size: 1500
+                  proto: TCP
+                  action: PASS
+                  ip_version: 4
+                  direction: EGRESS
+                  tcp_flags: 16
+      responses:
+        "200":
+          description: Packet inspection result.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PacketResult"
+  /analysis/summary:
+    get:
+      tags: [Analytics]
+      summary: Get global analytics summary
+      parameters:
+        - $ref: "#/components/parameters/LimitQuery"
+      responses:
+        "200":
+          $ref: "#/components/responses/AnalyticsSummary"
+  /analysis/host:
+    get:
+      tags: [Analytics]
+      summary: Get analytics summary for one host
+      parameters:
+        - $ref: "#/components/parameters/IPQuery"
+        - $ref: "#/components/parameters/LimitQuery"
+      responses:
+        "200":
+          $ref: "#/components/responses/AnalyticsSummary"
+  /analysis/hosts:
+    get:
+      tags: [Analytics]
+      summary: List known analytics hosts
+      responses:
+        "200":
+          description: Known hosts.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/KnownHost"
+  /analysis/export:
+    get:
+      tags: [Analytics]
+      summary: Export analytics input for report generation
+      parameters:
+        - name: ip
+          in: query
+          required: false
+          schema:
+            type: string
+          example: 192.168.0.10
+        - $ref: "#/components/parameters/LimitQuery"
+      responses:
+        "200":
+          description: Analytics export.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReportExport"
+  /analysis/report:
+    post:
+      tags: [Analytics]
+      summary: Generate AI analysis report
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReportRequest"
+            examples:
+              global:
+                value:
+                  ip: ""
+                  limit: 5
+              host:
+                value:
+                  ip: 192.168.0.10
+                  limit: 5
+      responses:
+        "200":
+          description: Generated report.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/GeneratedReport"
+components:
+  parameters:
+    IPQuery:
+      name: ip
+      in: query
+      required: true
+      schema:
+        type: string
+      example: 1.2.3.4
+    CIDRQuery:
+      name: cidr
+      in: query
+      required: true
+      schema:
+        type: string
+      example: 192.168.0.0/24
+    LimitQuery:
+      name: limit
+      in: query
+      required: false
+      schema:
+        type: integer
+        default: 50
+      example: 50
+  requestBodies:
+    IPRequest:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/IPRequest"
+          examples:
+            ipv4:
+              value:
+                ip: 1.2.3.4
+    CIDRRequest:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/CIDRRequest"
+          examples:
+            ipv4:
+              value:
+                cidr: 192.168.0.0/24
+            ipv6:
+              value:
+                cidr: fd00::/64
+  responses:
+    StringList:
+      description: String list.
+      content:
+        application/json:
+          schema:
+            type: array
+            items:
+              type: string
+    IPResponse:
+      description: IP mutation response.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/IPResponse"
+    CIDRResponse:
+      description: CIDR mutation response.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/CIDRResponse"
+    AnalyticsSummary:
+      description: Analytics summary.
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/AnalyticsSummary"
+  schemas:
+    IPRequest:
+      type: object
+      required: [ip]
+      properties:
+        ip:
+          type: string
+          example: 1.2.3.4
+    IPResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        ip:
+          type: string
+        version:
+          type: integer
+          format: int32
+    CIDRRequest:
+      type: object
+      required: [cidr]
+      properties:
+        cidr:
+          type: string
+          example: 192.168.0.0/24
+    CIDRResponse:
+      type: object
+      properties:
+        ok:
+          type: boolean
+        cidr:
+          type: string
+        prefix_len:
+          type: integer
+          format: int32
+        version:
+          type: integer
+          format: int32
+    RuntimeState:
+      type: object
+      properties:
+        mockMode:
+          type: boolean
+    NetworkDevice:
+      type: object
+      properties:
+        ip:
+          type: string
+        aliases:
+          type: array
+          items:
+            type: string
+        version:
+          type: integer
+          format: int32
+        mac:
+          type: string
+        hostname:
+          type: string
+        state:
+          type: string
+        sources:
+          type: array
+          items:
+            type: string
+    AppLog:
+      type: object
+      properties:
+        id:
+          type: integer
+          format: int64
+        created_at:
+          type: string
+        level:
+          type: string
+        category:
+          type: string
+        event:
+          type: string
+        message:
+          type: string
+        entity_type:
+          type: string
+        entity_id:
+          type: string
+        actor:
+          type: string
+        source:
+          type: string
+        metadata_json:
+          type: string
+    PacketRequest:
+      type: object
+      required: [src, dst, src_port, dst_port, pkt_size, proto, action, ip_version, direction]
+      properties:
+        seq:
+          type: integer
+          format: int64
+        time:
+          type: string
+        src:
+          type: string
+        dst:
+          type: string
+        src_port:
+          type: integer
+          format: int32
+        dst_port:
+          type: integer
+          format: int32
+        pkt_size:
+          type: integer
+          format: int32
+        proto:
+          type: string
+          example: TCP
+        action:
+          type: string
+          example: PASS
+        ip_version:
+          type: integer
+          format: int32
+          example: 4
+        direction:
+          type: string
+          example: EGRESS
+        tcp_flags:
+          type: integer
+          format: int32
+    PacketResult:
+      type: object
+      properties:
+        seq:
+          type: integer
+          format: int64
+        time:
+          type: string
+        protocol:
+          type: string
+        action:
+          type: string
+        direction:
+          type: string
+        ip_version:
+          type: integer
+          format: int32
+        packet_size:
+          type: integer
+          format: int32
+        tcp_flags:
+          type: integer
+          format: int32
+        source:
+          $ref: "#/components/schemas/EndpointInfo"
+        destination:
+          $ref: "#/components/schemas/EndpointInfo"
+    EndpointInfo:
+      type: object
+      properties:
+        ip:
+          type: string
+        port:
+          type: integer
+          format: int32
+        endpoint:
+          type: string
+        scope:
+          type: string
+        service:
+          type: string
+        geo:
+          $ref: "#/components/schemas/GeoInfo"
+        analysis_hint:
+          type: string
+    GeoInfo:
+      type: object
+      properties:
+        enabled:
+          type: boolean
+        provider:
+          type: string
+        status:
+          type: string
+        message:
+          type: string
+        query:
+          type: string
+        continent:
+          type: string
+        continent_code:
+          type: string
+        country:
+          type: string
+        country_code:
+          type: string
+        region:
+          type: string
+        region_name:
+          type: string
+        city:
+          type: string
+        district:
+          type: string
+        zip:
+          type: string
+        latitude:
+          type: number
+        longitude:
+          type: number
+        timezone:
+          type: string
+        utc_offset:
+          type: integer
+        currency:
+          type: string
+        isp:
+          type: string
+        organization:
+          type: string
+        as:
+          type: string
+        as_name:
+          type: string
+        mobile:
+          type: boolean
+        proxy:
+          type: boolean
+        hosting:
+          type: boolean
+    AnalyticsSummary:
+      type: object
+      properties:
+        peers:
+          type: array
+          items:
+            $ref: "#/components/schemas/PeerSummary"
+        services:
+          type: array
+          items:
+            $ref: "#/components/schemas/ServiceSummary"
+        countries:
+          type: array
+          items:
+            $ref: "#/components/schemas/CountrySummary"
+        blocked:
+          type: array
+          items:
+            $ref: "#/components/schemas/BlockedSummary"
+        totals:
+          $ref: "#/components/schemas/SummaryTotals"
+    SummaryTotals:
+      type: object
+      properties:
+        hosts:
+          type: integer
+          format: int64
+        peers:
+          type: integer
+          format: int64
+        services:
+          type: integer
+          format: int64
+        countries:
+          type: integer
+          format: int64
+        blocked:
+          type: integer
+          format: int64
+        packets:
+          type: integer
+          format: int64
+        bytes:
+          type: integer
+          format: int64
+    PeerSummary:
+      allOf:
+        - $ref: "#/components/schemas/TrafficPeer"
+        - type: object
+          properties:
+            direction:
+              type: string
+            action:
+              type: string
+            first_seen:
+              type: string
+              format: date-time
+            last_seen:
+              type: string
+              format: date-time
+    BlockedSummary:
+      allOf:
+        - $ref: "#/components/schemas/TrafficPeer"
+        - type: object
+          properties:
+            first_seen:
+              type: string
+              format: date-time
+            last_seen:
+              type: string
+              format: date-time
+    TrafficPeer:
+      type: object
+      properties:
+        host_ip:
+          type: string
+        peer_ip:
+          type: string
+        peer_scope:
+          type: string
+        peer_country_code:
+          type: string
+        peer_asn:
+          type: string
+        peer_as_name:
+          type: string
+        peer_isp:
+          type: string
+        peer_org:
+          type: string
+        peer_proxy:
+          type: boolean
+        peer_hosting:
+          type: boolean
+        peer_mobile:
+          type: boolean
+        proto:
+          type: string
+        port:
+          type: integer
+          format: int32
+        service:
+          type: string
+        packets:
+          type: integer
+          format: int64
+        bytes:
+          type: integer
+          format: int64
+    ServiceSummary:
+      type: object
+      properties:
+        host_ip:
+          type: string
+        proto:
+          type: string
+        port:
+          type: integer
+          format: int32
+        service:
+          type: string
+        direction:
+          type: string
+        action:
+          type: string
+        packets:
+          type: integer
+          format: int64
+        bytes:
+          type: integer
+          format: int64
+    CountrySummary:
+      type: object
+      properties:
+        host_ip:
+          type: string
+        country_code:
+          type: string
+        direction:
+          type: string
+        action:
+          type: string
+        packets:
+          type: integer
+          format: int64
+        bytes:
+          type: integer
+          format: int64
+    KnownHost:
+      type: object
+      properties:
+        ip:
+          type: string
+        hostname:
+          type: string
+        mac:
+          type: string
+        first_seen:
+          type: string
+          format: date-time
+        last_seen:
+          type: string
+          format: date-time
+    ReportRequest:
+      type: object
+      properties:
+        ip:
+          type: string
+          description: Empty string generates a global report.
+        limit:
+          type: integer
+          default: 5
+    ReportExport:
+      type: object
+      properties:
+        generated_at:
+          type: string
+          format: date-time
+        scope:
+          type: string
+        host_ip:
+          type: string
+        limit:
+          type: integer
+        summary:
+          $ref: "#/components/schemas/AnalyticsSummary"
+    GeneratedReport:
+      type: object
+      properties:
+        generated_at:
+          type: string
+          format: date-time
+        model:
+          type: string
+        duration_ms:
+          type: integer
+          format: int64
+        input:
+          $ref: "#/components/schemas/ReportExport"
+        report:
+          type: object
+          additionalProperties: true
