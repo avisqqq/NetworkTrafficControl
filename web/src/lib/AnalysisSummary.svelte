@@ -568,7 +568,7 @@
           {#each serviceGroups as service}
             <div class="analysis-row">
               <div>
-                <strong>{service.service}</strong>
+                <strong><span class="service-label" data-service-tooltip={serviceTooltip(service)}>{service.service}</span></strong>
                 <span>{service.proto} · {joined(service.directions)} · {joined(service.actions)}</span>
                 <div class="endpoint-chip-row">
                   {#each uniqueValues(service.hostIPs) as ip}

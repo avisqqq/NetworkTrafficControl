@@ -215,12 +215,21 @@
   }
 
   function handleEndpointTooltip(event) {
-    const target = event.target?.closest?.('.endpoint-copy[data-endpoint-ip]')
-    if (!target) {
-      hideEndpointTooltip()
+    const endpoint = event.target?.closest?.('.endpoint-copy[data-endpoint-ip]')
+    if (endpoint) {
+      showEndpointTooltip(endpoint.dataset.endpointIp, event)
       return
     }
-    showEndpointTooltip(target.dataset.endpointIp, event)
+    const service = event.target?.closest?.('.service-label[data-service-tooltip]')
+    if (service) {
+      endpointTooltip = {
+        text: service.dataset.serviceTooltip,
+        x: Math.min(window.innerWidth - 320, Math.max(12, event.clientX + 16)),
+        y: Math.max(12, event.clientY - 18),
+      }
+      return
+    }
+    hideEndpointTooltip()
   }
 
   function hideEndpointTooltip() {
@@ -256,6 +265,12 @@
 
   function peerDetails(row, parts = []) {
     return [peerSubtitle(row), ...parts].filter(Boolean).join(' · ') || '—'
+  }
+
+  function serviceTooltip(row) {
+    const proto = row?.proto || 'service'
+    const port = Number(row?.port) || 0
+    return port ? `${proto} port ${port}` : proto
   }
 
   function serviceContext(row) {
@@ -621,7 +636,7 @@
         {#each reportServices as service}
           <div class="summary-row">
             <div>
-              <strong>{service.service || service.port}</strong>
+              <strong><span class="service-label" data-service-tooltip={serviceTooltip(service)}>{service.service || service.port}</span></strong>
               <span>{service.proto} · {service.direction} · {service.action}</span>
             </div>
             <b>{formatBytes(service.bytes)}</b>

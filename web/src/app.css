@@ -1855,6 +1855,14 @@ td.addr    { word-break: break-all; min-width: 120px; }
   color: var(--accent);
 }
 
+.service-label {
+  cursor: help;
+}
+
+.service-label:hover {
+  color: var(--accent);
+}
+
 .endpoint-tooltip {
   position: fixed;
   z-index: 1000;
