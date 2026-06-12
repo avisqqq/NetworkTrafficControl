@@ -74,6 +74,50 @@ func TestAnalyticsRepositoryCountriesUseCurrentEnrichment(t *testing.T) {
 	}
 }
 
+func TestAnalyticsRepositoryClassifiesLocalPeerCountryAndUnknownService(t *testing.T) {
+	repo := NewAnalyticsRepository(testAnalyticsDB(t))
+	seenAt := time.Date(2026, 6, 10, 18, 28, 0, 0, time.UTC)
+
+	if err := repo.RecordPacket(app.PacketStat{
+		HostIP:    "192.168.0.143",
+		PeerIP:    "192.168.50.4",
+		HostScope: "Private network",
+		PeerScope: "Private network",
+		Proto:     "TCP",
+		Port:      60135,
+		Service:   "Unknown service",
+		Direction: "EGRESS",
+		Action:    "PASS",
+		Packets:   25_000_000,
+		Bytes:     6_993_237_367,
+		SeenAt:    seenAt,
+	}); err != nil {
+		t.Fatalf("record packet: %v", err)
+	}
+
+	summary, err := repo.Summary(100)
+	if err != nil {
+		t.Fatalf("summary: %v", err)
+	}
+
+	if len(summary.Peers) != 1 {
+		t.Fatalf("expected one peer row, got %+v", summary.Peers)
+	}
+	if summary.Peers[0].PeerCountryCode != "LOCAL" {
+		t.Fatalf("expected local peer country, got %+v", summary.Peers[0])
+	}
+	if summary.Peers[0].Service != "Local TCP session" {
+		t.Fatalf("expected local service label, got %+v", summary.Peers[0])
+	}
+
+	if len(summary.Countries) != 1 || summary.Countries[0].CountryCode != "LOCAL" {
+		t.Fatalf("expected local country summary, got %+v", summary.Countries)
+	}
+	if len(summary.Services) != 1 || summary.Services[0].Service != "Local TCP session" {
+		t.Fatalf("expected local service summary, got %+v", summary.Services)
+	}
+}
+
 func testAnalyticsDB(t *testing.T) *gorm.DB {
 	t.Helper()
 

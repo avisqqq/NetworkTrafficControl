@@ -24,6 +24,13 @@ app_logs:
 analytics:
   path: ./data/analytics.db
 
+ai:
+  enabled: true
+  endpoint: http://127.0.0.1:11434/api/chat
+  model: qwen2.5:1.5b
+  timeout_seconds: 180
+  max_rows: 5
+
 geo:
   enabled: true
   provider: ip-api

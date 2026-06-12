@@ -104,6 +104,57 @@ func ReadNeighbors(iface string) ([]NetworkDevice, error) {
 
 }
 
+func ReadSelfDevices() ([]NetworkDevice, error) {
+	ifaces, err := net.Interfaces()
+	if err != nil {
+		return nil, err
+	}
+
+	hostname, _ := os.Hostname()
+	self := NetworkDevice{
+		Hostname: hostname,
+		State:    "SELF",
+		Source:   []string{"self"},
+	}
+	for _, iface := range ifaces {
+		if iface.Flags&net.FlagLoopback != 0 || iface.Flags&net.FlagUp == 0 {
+			continue
+		}
+		addrs, err := iface.Addrs()
+		if err != nil {
+			continue
+		}
+		for _, addr := range addrs {
+			ipNet, ok := addr.(*net.IPNet)
+			if !ok || ipNet.IP == nil {
+				continue
+			}
+			ip := ipNet.IP
+			if ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsUnspecified() {
+				continue
+			}
+			version := packet.IPVersion(ip)
+			if self.IP == "" {
+				self.IP = ip.String()
+				self.Version = version
+			} else if self.Version != 4 && version == 4 {
+				self.Aliases = append(self.Aliases, self.IP)
+				self.IP = ip.String()
+				self.Version = version
+			} else {
+				self.Aliases = append(self.Aliases, ip.String())
+			}
+			if self.MAC == "" {
+				self.MAC = iface.HardwareAddr.String()
+			}
+		}
+	}
+	if self.IP == "" {
+		return nil, nil
+	}
+	return []NetworkDevice{self}, nil
+}
+
 func isNeighborState(s string) bool {
 	switch s {
 	case "INCOMPLETE", "REACHABLE", "STALE", "DELAY", "PROBE",
@@ -117,8 +168,9 @@ func isNeighborState(s string) bool {
 func ReadDevices(iface, path string) ([]NetworkDevice, error) {
 	leases, leasesErr := ReadDNSMasqLeases(path)
 	neighbors, neighErr := ReadNeighbors(iface)
+	selfDevices, selfErr := ReadSelfDevices()
 
-	if leasesErr != nil && neighErr != nil {
+	if leasesErr != nil && neighErr != nil && selfErr != nil {
 		if errors.Is(leasesErr, os.ErrNotExist) {
 			return []NetworkDevice{}, nil
 		}
@@ -133,6 +185,22 @@ func ReadDevices(iface, path string) ([]NetworkDevice, error) {
 		key := deviceKey(d)
 		merged[key] = d
 		indexDevice(byIP, byMAC, key, d)
+	}
+	for _, d := range selfDevices {
+		key := knownDeviceKey(byIP, byMAC, d)
+		if key == "" {
+			key = deviceKey(d)
+		}
+
+		existing, ok := merged[key]
+		if !ok {
+			merged[key] = d
+			indexDevice(byIP, byMAC, key, d)
+			continue
+		}
+
+		merged[key] = mergeDevice(existing, d)
+		indexDevice(byIP, byMAC, key, merged[key])
 	}
 	for _, d := range neighbors {
 		key := knownDeviceKey(byIP, byMAC, d)
@@ -193,6 +261,7 @@ func mergeDevice(a, b NetworkDevice) NetworkDevice {
 	if a.IP == "" {
 		a.IP = b.IP
 	}
+	a.Aliases = mergedSources(a.Aliases, b.Aliases)
 	if a.Version == 0 {
 		a.Version = b.Version
 	}
@@ -203,6 +272,9 @@ func mergeDevice(a, b NetworkDevice) NetworkDevice {
 		a.Hostname = b.Hostname
 	}
 	if a.State == "" {
+		a.State = b.State
+	}
+	if b.State == "SELF" {
 		a.State = b.State
 	}
 

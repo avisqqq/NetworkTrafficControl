@@ -3,8 +3,8 @@
   import { fetchAppLogs } from './api.js'
 
   const levelOptions = ['All levels', 'INFO', 'WARN', 'ERROR']
-  const categoryOptions = ['All categories', 'system', 'list', 'storage', 'network', 'inspect']
-  const sourceOptions = ['All sources', 'startup', 'http', 'list_manager', 'storage', 'inspection']
+  const categoryOptions = ['All categories', 'system', 'list', 'storage', 'network', 'inspect', 'ai']
+  const sourceOptions = ['All sources', 'startup', 'http', 'list_manager', 'storage', 'inspection', 'ai']
 
   let rows = []
   let loading = false

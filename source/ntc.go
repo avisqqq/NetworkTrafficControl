@@ -13,9 +13,11 @@ import (
 	appNetwork "ntc/source/application/network"
 	packetapp "ntc/source/application/packet"
 	"ntc/source/application/packetstream"
+	appReports "ntc/source/application/reports"
 	appsystem "ntc/source/application/system"
 	"ntc/source/application/traffic"
 	"ntc/source/config"
+	infraai "ntc/source/infrastructure/ai"
 	infrageo "ntc/source/infrastructure/geo"
 	infrahttp "ntc/source/infrastructure/http"
 	infrapacket "ntc/source/infrastructure/packet"
@@ -104,6 +106,15 @@ func main() {
 	analyticsRepo := infraLog.NewAnalyticsRepository(analyticsDb)
 	analyticsService := appAnalytics.NewService(analyticsRepo, localCIDRs)
 	analyticsService.Start(ctx)
+	var aiClient appReports.AIClient
+	if cfg.AI.Enabled {
+		aiClient = infraai.NewOllamaClient(
+			cfg.AI.Endpoint,
+			time.Duration(cfg.AI.TimeoutSeconds)*time.Second,
+		)
+	}
+	reportService := appReports.NewService(analyticsService, aiClient, cfg.AI.Model, cfg.AI.MaxRows)
+	reportService.SetLogger(appLog)
 	systemService := appsystem.NewService(infrasystem.NewSystemCollector())
 	var geoProvider inspection.GeoProvider
 	if cfg.Geo.Enabled && cfg.Geo.Provider == "ip-api" {
@@ -121,7 +132,7 @@ func main() {
 	)
 	dispatcher.Start(ctx)
 
-	server := infrahttp.NewServer(cfg.ServerAddr(), "./dist", networkInterface, leaseFile, runtime.Lists, sse, metricsService, systemService, *mockMode, appLog, appLog, inspectionService, analyticsService)
+	server := infrahttp.NewServer(cfg.ServerAddr(), "./dist", networkInterface, leaseFile, runtime.Lists, sse, metricsService, systemService, *mockMode, appLog, appLog, inspectionService, analyticsService, reportService)
 
 	go func() {
 

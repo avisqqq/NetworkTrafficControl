@@ -12,6 +12,7 @@ import (
 type analyticsRepoStub struct {
 	recordPacketsCalls [][]PacketStat
 	recordPacketsErr   error
+	knownHosts         []KnownHost
 }
 
 func (r *analyticsRepoStub) RecordPacket(stat PacketStat) error {
@@ -22,6 +23,15 @@ func (r *analyticsRepoStub) RecordPackets(stats []PacketStat) error {
 	copied := append([]PacketStat(nil), stats...)
 	r.recordPacketsCalls = append(r.recordPacketsCalls, copied)
 	return r.recordPacketsErr
+}
+
+func (r *analyticsRepoStub) RecordKnownHost(host KnownHost) error {
+	r.knownHosts = append(r.knownHosts, host)
+	return nil
+}
+
+func (r *analyticsRepoStub) KnownHosts() ([]KnownHost, error) {
+	return r.knownHosts, nil
 }
 
 func (r *analyticsRepoStub) Summary(limit int) (Summary, error) {

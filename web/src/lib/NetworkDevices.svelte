@@ -1,6 +1,6 @@
 <script>
   import { onMount } from 'svelte'
-  import { addIP, fetchAnalysisSummary, fetchHostAnalysis, fetchList, fetchMetricsText, fetchNetworkDevices, removeIP } from './api.js'
+  import { addIP, fetchAnalysisSummary, fetchHostAnalysis, fetchKnownHosts, fetchList, fetchMetricsText, fetchNetworkDevices, removeIP } from './api.js'
 
   let devices = []
   let metricsText = ''
@@ -11,10 +11,19 @@
   let reportIP = ''
   let loading = false
   let summaryLoading = false
+  let showKnownHosts = false
+  let knownHosts = []
+  let knownHostsLoaded = false
+  let knownHostsLoading = false
+  let blacklistMap = {}
+  let onlyLocalMap = {}
   let error = ''
+  let endpointTooltip = { text: '', x: 0, y: 0 }
 
+  $: knownDevices = showKnownHosts ? knownDevicesFromHosts(knownHosts, devices) : []
+  $: allDevices = [...devices, ...knownDevices]
   $: selectedDevice = visibleDevices.find(device => device.ip === selectedIP) || null
-  $: reportDevice = devices.find(device => device.ip === reportIP) || null
+  $: reportDevice = allDevices.find(device => device.ip === reportIP) || null
   $: activeCount = visibleDevices.filter(device => isConnected(device)).length
   $: blockedCount = visibleDevices.filter(device => !device.active).length
   $: onlyLocalCount = visibleDevices.filter(device => device.onlyLocal).length
@@ -32,7 +41,12 @@
   $: reportServices = topRows(reportServicesAll)
   $: reportCountries = topRows(reportCountriesAll)
   $: reportBlocked = topRows(reportBlockedAll)
-  $: visibleDevices = devices.filter(device => !isAnonymousLinkLocal(device) || devices.length === 1)
+  $: visibleDevices = allDevices.filter(device => !isAnonymousLinkLocal(device) || allDevices.length === 1)
+  $: knownHostCount = knownDevicesFromHosts(knownHosts, devices).length
+  $: localNames = {
+    ...Object.fromEntries((knownHosts || []).filter(host => host.ip && host.hostname).map(host => [host.ip, host.hostname])),
+    ...Object.fromEntries((allDevices || []).flatMap(device => deviceIPs(device).map(ip => [ip, device.hostname]).filter(([, name]) => name))),
+  }
 
   function emptyAnalysis() {
     return { peers: [], services: [], countries: [], blocked: [], totals: {} }
@@ -46,6 +60,10 @@
     return device?.hostname || device?.ip || 'Unknown host'
   }
 
+  function deviceIPs(device) {
+    return [device?.ip, ...(device?.aliases || [])].filter(Boolean)
+  }
+
   function isAnonymousLinkLocal(device) {
     const ip = (device?.ip || '').toLowerCase()
     return ip.startsWith('fe80:') && !device?.hostname && !device?.mac
@@ -54,14 +72,37 @@
   function isConnected(device) {
     if (!device?.active) return false
     const state = (device.state || '').toUpperCase()
-    if (!state) return sources(device).includes('neigh') || sources(device).includes('dhcp')
-    return !['FAILED', 'INCOMPLETE'].includes(state)
+    if (sources(device).includes('self')) return true
+    if (!sources(device).includes('neigh')) return false
+    if (!state) return true
+    return ['REACHABLE', 'DELAY', 'PROBE'].includes(state)
+  }
+
+  function knownDevicesFromHosts(hosts, currentDevices) {
+    const existing = new Set((currentDevices || []).flatMap(deviceIPs))
+    return (hosts || [])
+      .filter(host => host?.ip && !existing.has(host.ip))
+      .map(host => ({
+        ip: host.ip,
+        version: host.ip.includes(':') ? 6 : 4,
+        mac: host.mac || '',
+        hostname: host.hostname || '',
+        state: 'HISTORICAL',
+        sources: ['analytics'],
+        active: !blacklistMap[host.ip],
+        onlyLocal: !!onlyLocalMap[host.ip],
+        first_seen: host.first_seen,
+        last_seen: host.last_seen,
+      }))
   }
 
   function statusText(device) {
     if (isConnected(device)) return 'Connected'
-    const lastSeen = lastSeenForHost(device?.ip)
-    return lastSeen ? `Last seen ${formatRelative(lastSeen)}` : 'Not connected'
+    if (sources(device).includes('analytics')) {
+      const lastSeen = lastSeenForHost(device?.ip)
+      return lastSeen ? `Known ${formatRelative(lastSeen)}` : 'Known host'
+    }
+    return 'Offline'
   }
 
   function metricValue(name) {
@@ -79,8 +120,26 @@
   }
 
   function formatNumber(value) {
+    return formatCompact(value)
+  }
+
+  function formatCompact(value) {
     const number = Number(value)
-    return Number.isFinite(number) ? number.toLocaleString(undefined, { maximumFractionDigits: 2 }) : value
+    if (!Number.isFinite(number)) return value
+    const units = ['', 'K', 'M', 'B', 'T']
+    let current = Math.abs(number)
+    let unitIndex = 0
+    while (current >= 1000 && unitIndex < units.length - 1) {
+      current /= 1000
+      unitIndex += 1
+    }
+    const signed = number < 0 ? -current : current
+    return `${signed.toLocaleString(undefined, { maximumFractionDigits: current >= 10 || unitIndex === 0 ? 0 : 1 })}${units[unitIndex]}`
+  }
+
+  function fullNumber(value) {
+    const number = Number(value)
+    return Number.isFinite(number) ? number.toLocaleString() : value
   }
 
   function formatBytes(value) {
@@ -122,7 +181,63 @@
   }
 
   function peerName(row) {
-    return row?.peer_org || row?.peer_as_name || row?.peer_isp || row?.peer_ip || 'Unknown peer'
+    return endpointLabel(row?.peer_ip) || localNames[row?.peer_ip] || row?.peer_org || row?.peer_as_name || row?.peer_isp || row?.peer_ip || 'Unknown peer'
+  }
+
+  async function copyIP(ip) {
+    if (!ip) return
+    try {
+      if (navigator?.clipboard && window.isSecureContext) {
+        await navigator.clipboard.writeText(ip)
+        return
+      }
+      const input = document.createElement('textarea')
+      input.value = ip
+      input.setAttribute('readonly', '')
+      input.style.position = 'fixed'
+      input.style.opacity = '0'
+      document.body.appendChild(input)
+      input.select()
+      document.execCommand('copy')
+      document.body.removeChild(input)
+    } catch {
+      // Ignore clipboard errors; the title still exposes the IP.
+    }
+  }
+
+  function showEndpointTooltip(ip, event) {
+    if (!ip) return
+    endpointTooltip = {
+      text: `${ip} · click to copy`,
+      x: Math.min(window.innerWidth - 320, Math.max(12, event.clientX + 16)),
+      y: Math.max(12, event.clientY - 18),
+    }
+  }
+
+  function handleEndpointTooltip(event) {
+    const target = event.target?.closest?.('.endpoint-copy[data-endpoint-ip]')
+    if (!target) {
+      hideEndpointTooltip()
+      return
+    }
+    showEndpointTooltip(target.dataset.endpointIp, event)
+  }
+
+  function hideEndpointTooltip() {
+    if (endpointTooltip.text) endpointTooltip = { text: '', x: 0, y: 0 }
+  }
+
+  function endpointLabel(ip) {
+    if (!ip) return ''
+    if (ip === '255.255.255.255') return 'IPv4 broadcast'
+    if (ip.endsWith('.255')) return 'Subnet broadcast'
+    if (ip === '224.0.0.251') return 'mDNS multicast'
+    if (ip === '239.255.255.250') return 'SSDP multicast'
+    if (ip === '224.0.0.1') return 'All hosts multicast'
+    if (ip.startsWith('224.') || ip.startsWith('239.')) return 'IPv4 multicast'
+    if (ip.toLowerCase().startsWith('ff02::fb')) return 'mDNS multicast'
+    if (ip.toLowerCase().startsWith('ff')) return 'IPv6 multicast'
+    return ''
   }
 
   function peerSubtitle(row) {
@@ -132,7 +247,15 @@
       row?.peer_proxy ? 'proxy' : '',
       row?.peer_mobile ? 'mobile' : '',
     ].filter(Boolean)
-    return flags.length ? `${row.peer_ip} · ${flags.join(' · ')}` : row?.peer_ip || '—'
+    return flags.join(' · ')
+  }
+
+  function peerTitle(row) {
+    return row?.peer_ip || peerName(row)
+  }
+
+  function peerDetails(row, parts = []) {
+    return [peerSubtitle(row), ...parts].filter(Boolean).join(' · ') || '—'
   }
 
   function serviceContext(row) {
@@ -144,11 +267,27 @@
 
   function lastSeenForHost(ip) {
     if (!ip) return ''
+    const knownHost = knownHosts.find(host => host.ip === ip)
     const seen = [
+      knownHost?.last_seen,
       ...(analysis.peers || []).filter(row => row.host_ip === ip).map(row => row.last_seen),
       ...(analysis.blocked || []).filter(row => row.host_ip === ip).map(row => row.last_seen),
     ].filter(Boolean).sort()
     return seen.at(-1) || ''
+  }
+
+  function firstSeenForHost(ip) {
+    if (!ip) return ''
+    const knownHost = knownHosts.find(host => host.ip === ip)
+    return knownHost?.first_seen || ''
+  }
+
+  function deviceFirstSeen(device) {
+    return device?.first_seen || firstSeenForHost(device?.ip)
+  }
+
+  function deviceLastSeen(device) {
+    return device?.last_seen || lastSeenForHost(device?.ip)
   }
 
   function totalBytes(rows) {
@@ -173,21 +312,43 @@
     }
   }
 
+  async function toggleKnownHosts() {
+    if (showKnownHosts) {
+      showKnownHosts = false
+      return
+    }
+
+    knownHostsLoading = true
+    error = ''
+    try {
+      knownHosts = await fetchKnownHosts()
+      knownHostsLoaded = true
+      showKnownHosts = true
+    } catch {
+      error = 'Failed to load known hosts'
+    } finally {
+      knownHostsLoading = false
+    }
+  }
+
   async function load() {
     loading = devices.length === 0
     error = ''
 
     try {
-      const [networkDevices, blacklist, onlyLocal, metrics] = await Promise.all([
+      const [networkDevices, blacklist, onlyLocal, metrics, nextKnownHosts] = await Promise.all([
         fetchNetworkDevices(),
         fetchList('black'),
         fetchList('local'),
         fetchMetricsText(),
+        fetchKnownHosts().catch(() => knownHosts),
       ])
 
       metricsText = metrics
-      const blacklistMap = Object.fromEntries((blacklist || []).map(entry => [entry.ip, true]))
-      const onlyLocalMap = Object.fromEntries((onlyLocal || []).map(entry => [entry.ip, true]))
+      knownHosts = nextKnownHosts || []
+      knownHostsLoaded = true
+      blacklistMap = Object.fromEntries((blacklist || []).map(entry => [entry.ip, true]))
+      onlyLocalMap = Object.fromEntries((onlyLocal || []).map(entry => [entry.ip, true]))
       devices = (networkDevices || []).map(device => ({
         ...device,
         active: !blacklistMap[device.ip],
@@ -253,12 +414,14 @@
     const previousActive = device.active
     const nextActive = !previousActive
     devices = devices.map((item, i) => i === index ? { ...item, active: nextActive } : item)
+    blacklistMap = { ...blacklistMap, [device.ip]: !nextActive }
 
     try {
       if (nextActive) await removeIP('black', device.ip)
       else await addIP('black', device.ip)
     } catch {
       devices = devices.map((item, i) => i === index ? { ...item, active: previousActive } : item)
+      blacklistMap = { ...blacklistMap, [device.ip]: !previousActive }
       error = 'Failed to update blacklist'
     }
   }
@@ -269,12 +432,14 @@
     const previousOnlyLocal = device.onlyLocal
     const nextOnlyLocal = !previousOnlyLocal
     devices = devices.map((item, i) => i === index ? { ...item, onlyLocal: nextOnlyLocal } : item)
+    onlyLocalMap = { ...onlyLocalMap, [device.ip]: nextOnlyLocal }
 
     try {
       if (nextOnlyLocal) await addIP('local', device.ip)
       else await removeIP('local', device.ip)
     } catch {
       devices = devices.map((item, i) => i === index ? { ...item, onlyLocal: previousOnlyLocal } : item)
+      onlyLocalMap = { ...onlyLocalMap, [device.ip]: previousOnlyLocal }
       error = 'Failed to update only-local list'
     }
   }
@@ -282,7 +447,7 @@
   onMount(load)
 </script>
 
-<section class="hosts-shell">
+<section class="hosts-shell" aria-label="Hostnames" on:mousemove={handleEndpointTooltip} on:mouseleave={hideEndpointTooltip} on:focusout={hideEndpointTooltip}>
   <aside class="hosts-pane host-list-pane">
     <div class="hosts-pane-header">
       <div>
@@ -302,6 +467,20 @@
       <input placeholder="Search host" />
     </div>
 
+    <div class="host-list-actions">
+      <button class="btn btn-ghost" type="button" on:click={toggleKnownHosts} disabled={knownHostsLoading}>
+        {#if knownHostsLoading}
+          Loading known hosts
+        {:else if showKnownHosts}
+          Hide known hosts
+        {:else if knownHostsLoaded}
+          {knownHostCount > 0 ? `Show known hosts (${knownHostCount})` : 'Refresh known hosts'}
+        {:else}
+          Fetch known hosts
+        {/if}
+      </button>
+    </div>
+
     <div class="host-list">
       {#each visibleDevices as device, index (`${device.ip}-${device.mac}`)}
         <button class="host-row" class:selected={selectedIP === device.ip} type="button" on:click={() => selectDevice(device)}>
@@ -313,8 +492,10 @@
           <span class="host-row-meta">
             {#if isConnected(device)}
               Connected
+            {:else if sources(device).includes('analytics')}
+              {formatRelative(lastSeenForHost(device.ip)) || 'Known'}
             {:else}
-              {formatRelative(lastSeenForHost(device.ip)) || 'Offline'}
+              Offline
             {/if}
           </span>
         </button>
@@ -353,10 +534,13 @@
 
       <div class="host-info-card">
         <div class="host-info-row"><span>IP</span><strong>{selectedDevice.ip || '—'}</strong></div>
+        <div class="host-info-row"><span>Aliases</span><strong>{(selectedDevice.aliases || []).join(', ') || '—'}</strong></div>
         <div class="host-info-row"><span>IPv</span><strong>{selectedDevice.version || '—'}</strong></div>
         <div class="host-info-row"><span>MAC</span><strong>{selectedDevice.mac || '—'}</strong></div>
         <div class="host-info-row"><span>State</span><strong>{selectedDevice.state || '—'}</strong></div>
         <div class="host-info-row"><span>Sources</span><strong>{sources(selectedDevice).join(', ') || '—'}</strong></div>
+        <div class="host-info-row"><span>First known</span><strong>{formatDate(deviceFirstSeen(selectedDevice))}</strong></div>
+        <div class="host-info-row"><span>Last updated</span><strong>{formatDate(deviceLastSeen(selectedDevice))}</strong></div>
         <div class="host-info-row"><span>Access</span><strong>{selectedDevice.active ? 'Allowed' : 'Blacklisted'}</strong></div>
         <div class="host-info-row"><span>Policy</span><strong>{selectedDevice.onlyLocal ? 'Only local' : 'External allowed'}</strong></div>
       </div>
@@ -385,7 +569,7 @@
         {:else}
           {#each selectedPeers.slice(0, 4) as peer}
             <div class="host-mini-row">
-              <span>{peerName(peer)}</span>
+              <button class="endpoint-copy endpoint-copy-muted" type="button" data-endpoint-ip={peer.peer_ip} aria-label={`Copy ${peer.peer_ip}`} on:focus={(event) => showEndpointTooltip(peer.peer_ip, event)} on:click={() => copyIP(peer.peer_ip)}>{peerName(peer)}</button>
               <strong>{formatBytes(peer.bytes)}</strong>
             </div>
           {/each}
@@ -408,11 +592,11 @@
     </div>
 
     <div class="summary-hero-grid">
-      <div><span>Peers</span><strong>{formatNumber(reportTotals.peers ?? reportPeersAll.length)}</strong></div>
-      <div><span>Services</span><strong>{formatNumber(reportTotals.services ?? reportServicesAll.length)}</strong></div>
-      <div><span>Countries</span><strong>{formatNumber(reportTotals.countries ?? reportCountriesAll.length)}</strong></div>
-      <div><span>Blocked</span><strong>{formatNumber(reportTotals.blocked ?? reportBlockedAll.length)}</strong></div>
-      <div><span>Packets</span><strong>{formatNumber(reportTotals.packets ?? totalPackets(reportPeersAll))}</strong></div>
+      <div><span>Peers</span><strong title={fullNumber(reportTotals.peers ?? reportPeersAll.length)}>{formatCompact(reportTotals.peers ?? reportPeersAll.length)}</strong></div>
+      <div><span>Services</span><strong title={fullNumber(reportTotals.services ?? reportServicesAll.length)}>{formatCompact(reportTotals.services ?? reportServicesAll.length)}</strong></div>
+      <div><span>Countries</span><strong title={fullNumber(reportTotals.countries ?? reportCountriesAll.length)}>{formatCompact(reportTotals.countries ?? reportCountriesAll.length)}</strong></div>
+      <div><span>Blocked</span><strong title={fullNumber(reportTotals.blocked ?? reportBlockedAll.length)}>{formatCompact(reportTotals.blocked ?? reportBlockedAll.length)}</strong></div>
+      <div><span>Packets</span><strong title={fullNumber(reportTotals.packets ?? totalPackets(reportPeersAll))}>{formatCompact(reportTotals.packets ?? totalPackets(reportPeersAll))}</strong></div>
       <div><span>Bytes</span><strong>{formatBytes(reportTotals.bytes ?? totalBytes(reportPeersAll))}</strong></div>
     </div>
 
@@ -422,8 +606,8 @@
         {#each reportPeers as peer}
           <div class="summary-row">
             <div>
-              <strong>{peerName(peer)}</strong>
-              <span>{peerSubtitle(peer)} · {peer.direction} · {peer.action} · {peer.service || peer.port}</span>
+              <strong><button class="endpoint-copy" type="button" data-endpoint-ip={peer.peer_ip} aria-label={`Copy ${peer.peer_ip}`} on:focus={(event) => showEndpointTooltip(peer.peer_ip, event)} on:click={() => copyIP(peer.peer_ip)}>{peerName(peer)}</button></strong>
+              <span>{peerDetails(peer, [peer.direction, peer.action, peer.service || peer.port])}</span>
             </div>
             <b>{formatBytes(peer.bytes)}</b>
           </div>
@@ -467,8 +651,8 @@
         {#each reportBlocked as blocked}
           <div class="summary-row blocked">
             <div>
-              <strong>{peerName(blocked)}</strong>
-              <span>{peerSubtitle(blocked)} · {serviceContext(blocked)} · {formatDate(blocked.last_seen)}</span>
+              <strong><button class="endpoint-copy" type="button" data-endpoint-ip={blocked.peer_ip} aria-label={`Copy ${blocked.peer_ip}`} on:focus={(event) => showEndpointTooltip(blocked.peer_ip, event)} on:click={() => copyIP(blocked.peer_ip)}>{peerName(blocked)}</button></strong>
+              <span>{peerDetails(blocked, [serviceContext(blocked), formatDate(blocked.last_seen)])}</span>
             </div>
             <b>{formatBytes(blocked.bytes)}</b>
           </div>
@@ -479,3 +663,8 @@
     </div>
   </section>
 </section>
+{#if endpointTooltip.text}
+  <div class="endpoint-tooltip" style={`left: ${endpointTooltip.x}px; top: ${endpointTooltip.y}px;`}>
+    {endpointTooltip.text}
+  </div>
+{/if}
