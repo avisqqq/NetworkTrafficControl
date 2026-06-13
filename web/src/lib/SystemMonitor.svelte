@@ -9,6 +9,7 @@
   let sortDir = 'desc'
 
   $: sortedProcesses = sortProcesses(snapshot?.processes || [], sortKey, sortDir)
+  $: coreCount = Math.max(1, snapshot?.cpu?.coresPercent?.length || 1)
 
   function formatBytes(value) {
     const units = ['B', 'KB', 'MB', 'GB', 'TB']
@@ -29,6 +30,10 @@
 
   function percent(value) {
     return `${Number(value || 0).toFixed(1)}%`
+  }
+
+  function processPercent(value) {
+    return percent(Number(value || 0) / coreCount)
   }
 
   function barWidth(value) {
@@ -163,7 +168,7 @@
           <div class="table-actions">
             <div>
               <div class="panel-title">Processes</div>
-              <div class="system-note">Sorted {sortDir} by {sortKey}, showing {sortedProcesses.length}</div>
+              <div class="system-note">Sorted {sortDir} by {sortKey}, showing {sortedProcesses.length}. Process CPU is normalized across {coreCount} cores.</div>
             </div>
           </div>
 
@@ -202,7 +207,7 @@
                 <tr>
                   <td class="muted">{proc.pid}</td>
                   <td class="process-name">{proc.name}</td>
-                  <td class="right">{percent(proc.cpuPercent)}</td>
+                  <td class="right">{processPercent(proc.cpuPercent)}</td>
                   <td class="right">{formatBytes(proc.ramBytes)}</td>
                   <td class="right">{percent(proc.ramPercent)}</td>
                 </tr>

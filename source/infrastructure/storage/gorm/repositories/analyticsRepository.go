@@ -73,6 +73,40 @@ func (r *AnalyticsRepository) RecordPacket(stat app.PacketStat) error {
 	return r.RecordPackets([]app.PacketStat{stat})
 }
 
+func (r *AnalyticsRepository) RecordKnownHost(host app.KnownHost) error {
+	if host.IP == "" {
+		return nil
+	}
+	if host.FirstSeen.IsZero() {
+		host.FirstSeen = time.Now().UTC()
+	}
+	if host.LastSeen.IsZero() {
+		host.LastSeen = host.FirstSeen
+	}
+
+	assignments := map[string]any{
+		"last_seen": host.LastSeen,
+	}
+	if host.Hostname != "" {
+		assignments["hostname"] = host.Hostname
+	}
+	if host.MAC != "" {
+		assignments["mac"] = host.MAC
+	}
+
+	row := models.AnalyticsHost{
+		IP:        host.IP,
+		Hostname:  host.Hostname,
+		MAC:       host.MAC,
+		FirstSeen: host.FirstSeen,
+		LastSeen:  host.LastSeen,
+	}
+	return r.db.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "ip"}},
+		DoUpdates: clause.Assignments(assignments),
+	}).Create(&row).Error
+}
+
 func (r *AnalyticsRepository) RecordPackets(stats []app.PacketStat) error {
 	if len(stats) == 0 {
 		return nil
@@ -179,6 +213,15 @@ func (r *AnalyticsRepository) HostSummary(ip string, limit int) (app.Summary, er
 	}
 
 	return summary, nil
+}
+
+func (r *AnalyticsRepository) KnownHosts() ([]app.KnownHost, error) {
+	var hosts []app.KnownHost
+	err := r.db.Table("hosts").
+		Select("ip, hostname, mac, first_seen, last_seen").
+		Order("last_seen DESC").
+		Scan(&hosts).Error
+	return hosts, err
 }
 
 func upsertIP(tx *gorm.DB, ip, scope string, seenAt time.Time) (models.AnalyticsIP, error) {
@@ -404,7 +447,7 @@ func (r *AnalyticsRepository) summaryTotals(hostIP string, out *app.SummaryTotal
 	if err := serviceQuery().Select("COUNT(DISTINCT hsc.service_id)").Scan(&out.Services).Error; err != nil {
 		return err
 	}
-	if err := countryQuery().Select("COUNT(DISTINCT COALESCE(NULLIF(enr.country_code, ''), 'UNKNOWN'))").Scan(&out.Countries).Error; err != nil {
+	if err := countryQuery().Select("COUNT(DISTINCT " + countryCodeExpr() + ")").Scan(&out.Countries).Error; err != nil {
 		return err
 	}
 	if err := blockedQuery().Select("COUNT(DISTINCT bpc.peer_ip_id)").Scan(&out.Blocked).Error; err != nil {
@@ -446,22 +489,26 @@ func (r *AnalyticsRepository) topPeersForHost(ip string, limit int, out *[]app.P
 }
 
 func (r *AnalyticsRepository) topServices(limit int, out *[]app.ServiceSummary) error {
-	return r.db.Table("host_service_counters hsc").
-		Select("host.ip AS host_ip, svc.proto AS proto, svc.port AS port, svc.name AS service, hsc.direction, hsc.action, hsc.packets, hsc.bytes").
-		Joins("JOIN ips host ON host.id = hsc.host_ip_id").
-		Joins("JOIN services svc ON svc.id = hsc.service_id").
-		Order("hsc.bytes DESC").
+	return r.db.Table("host_peer_counters hpc").
+		Select(serviceSummarySelect("hpc")).
+		Joins("JOIN ips host ON host.id = hpc.host_ip_id").
+		Joins("JOIN ips peer ON peer.id = hpc.peer_ip_id").
+		Joins("JOIN services svc ON svc.id = hpc.service_id").
+		Group("host.ip, svc.proto, svc.port, service, hpc.direction, hpc.action").
+		Order("bytes DESC").
 		Limit(limit).
 		Scan(out).Error
 }
 
 func (r *AnalyticsRepository) topServicesForHost(ip string, limit int, out *[]app.ServiceSummary) error {
-	return r.db.Table("host_service_counters hsc").
-		Select("host.ip AS host_ip, svc.proto AS proto, svc.port AS port, svc.name AS service, hsc.direction, hsc.action, hsc.packets, hsc.bytes").
-		Joins("JOIN ips host ON host.id = hsc.host_ip_id").
-		Joins("JOIN services svc ON svc.id = hsc.service_id").
+	return r.db.Table("host_peer_counters hpc").
+		Select(serviceSummarySelect("hpc")).
+		Joins("JOIN ips host ON host.id = hpc.host_ip_id").
+		Joins("JOIN ips peer ON peer.id = hpc.peer_ip_id").
+		Joins("JOIN services svc ON svc.id = hpc.service_id").
 		Where("host.ip = ?", ip).
-		Order("hsc.bytes DESC").
+		Group("host.ip, svc.proto, svc.port, service, hpc.direction, hpc.action").
+		Order("bytes DESC").
 		Limit(limit).
 		Scan(out).Error
 }
@@ -518,17 +565,42 @@ func (r *AnalyticsRepository) topBlockedForHost(ip string, limit int, out *[]app
 
 func peerSummarySelect(table string) string {
 	return "host.ip AS host_ip, peer.ip AS peer_ip, peer.scope AS peer_scope, " +
-		"enr.country_code AS peer_country_code, enr.asn AS peer_asn, enr.as_name AS peer_as_name, enr.isp AS peer_isp, enr.org AS peer_org, enr.proxy AS peer_proxy, enr.hosting AS peer_hosting, enr.mobile AS peer_mobile, " +
-		"svc.proto AS proto, svc.port AS port, svc.name AS service, " + table + ".direction, " + table + ".action, " + table + ".packets, " + table + ".bytes, " + table + ".first_seen, " + table + ".last_seen"
+		countryCodeExpr() + " AS peer_country_code, enr.asn AS peer_asn, enr.as_name AS peer_as_name, enr.isp AS peer_isp, enr.org AS peer_org, enr.proxy AS peer_proxy, enr.hosting AS peer_hosting, enr.mobile AS peer_mobile, " +
+		"svc.proto AS proto, svc.port AS port, " + serviceDisplayExpr() + " AS service, " + table + ".direction, " + table + ".action, " + table + ".packets, " + table + ".bytes, " + table + ".first_seen, " + table + ".last_seen"
 }
 
 func blockedSummarySelect(table string) string {
 	return "host.ip AS host_ip, peer.ip AS peer_ip, " +
-		"enr.country_code AS peer_country_code, enr.asn AS peer_asn, enr.as_name AS peer_as_name, enr.isp AS peer_isp, enr.org AS peer_org, enr.proxy AS peer_proxy, enr.hosting AS peer_hosting, enr.mobile AS peer_mobile, " +
-		"svc.proto AS proto, svc.port AS port, svc.name AS service, " + table + ".packets, " + table + ".bytes, " + table + ".first_seen, " + table + ".last_seen"
+		countryCodeExpr() + " AS peer_country_code, enr.asn AS peer_asn, enr.as_name AS peer_as_name, enr.isp AS peer_isp, enr.org AS peer_org, enr.proxy AS peer_proxy, enr.hosting AS peer_hosting, enr.mobile AS peer_mobile, " +
+		"svc.proto AS proto, svc.port AS port, " + serviceDisplayExpr() + " AS service, " + table + ".packets, " + table + ".bytes, " + table + ".first_seen, " + table + ".last_seen"
+}
+
+func serviceSummarySelect(table string) string {
+	return "host.ip AS host_ip, svc.proto AS proto, svc.port AS port, " + serviceDisplayExpr() + " AS service, " +
+		table + ".direction, " + table + ".action, SUM(" + table + ".packets) AS packets, SUM(" + table + ".bytes) AS bytes"
 }
 
 func countrySummarySelect() string {
-	return "host.ip AS host_ip, COALESCE(NULLIF(enr.country_code, ''), 'UNKNOWN') AS country_code, " +
+	return "host.ip AS host_ip, " + countryCodeExpr() + " AS country_code, " +
 		"hpc.direction, hpc.action, SUM(hpc.packets) AS packets, SUM(hpc.bytes) AS bytes"
+}
+
+func countryCodeExpr() string {
+	return "CASE " +
+		"WHEN peer.ip = '255.255.255.255' OR peer.ip LIKE '%.255' THEN 'BROADCAST' " +
+		"WHEN peer.scope = 'Private network' THEN 'LOCAL' " +
+		"WHEN peer.scope = 'Link-local' THEN 'LINK_LOCAL' " +
+		"WHEN peer.scope = 'Multicast' THEN 'MULTICAST' " +
+		"WHEN peer.scope = 'Loopback' THEN 'LOOPBACK' " +
+		"ELSE COALESCE(NULLIF(enr.country_code, ''), 'UNKNOWN') END"
+}
+
+func serviceDisplayExpr() string {
+	return "CASE " +
+		"WHEN svc.name IS NOT NULL AND svc.name NOT IN ('', 'Unknown service') THEN svc.name " +
+		"WHEN svc.proto = 'ICMP' THEN 'ICMP' " +
+		"WHEN peer.scope IN ('Private network', 'Link-local', 'Loopback') THEN 'Local ' || svc.proto || ' session' " +
+		"WHEN peer.scope = 'Multicast' THEN 'Multicast ' || svc.proto || ' traffic' " +
+		"WHEN svc.port >= 49152 THEN 'Ephemeral ' || svc.proto || ' session' " +
+		"ELSE svc.proto || ' port ' || svc.port END"
 }

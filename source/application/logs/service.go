@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"ntc/source/application/inspection"
+	"ntc/source/application/reports"
 	domain "ntc/source/domain/logs"
 	"strconv"
 	"time"
@@ -240,6 +241,74 @@ func (s *Service) GeoLookupSucceeded(ctx context.Context, endpoint, ip string, p
 	})
 }
 
+func (s *Service) AIReportRequested(ctx context.Context, hostIP string, limit int, model string) {
+	entityID := reportEntityID(hostIP)
+	_, _ = s.Add(ctx, domain.AppLog{
+		Level:      domain.LevelInfo,
+		Category:   domain.CategoryAI,
+		Event:      domain.EventAIReportRequested,
+		Message:    "ai report requested",
+		EntityType: domain.EntityTypeReport,
+		EntityID:   entityID,
+		Actor:      domain.ActorAPI,
+		Source:     domain.SourceAI,
+		MetadataJSON: metadataJSON(map[string]any{
+			"host_ip": hostIP,
+			"scope":   reportScope(hostIP),
+			"limit":   limit,
+			"model":   model,
+		}),
+	})
+}
+
+func (s *Service) AIReportSucceeded(ctx context.Context, report reports.Report) {
+	entityID := reportEntityID(report.Input.HostIP)
+	_, _ = s.Add(ctx, domain.AppLog{
+		Level:      domain.LevelInfo,
+		Category:   domain.CategoryAI,
+		Event:      domain.EventAIReportSucceeded,
+		Message:    "ai report generated",
+		EntityType: domain.EntityTypeReport,
+		EntityID:   entityID,
+		Actor:      domain.ActorAPI,
+		Source:     domain.SourceAI,
+		MetadataJSON: metadataJSON(map[string]any{
+			"host_ip":      report.Input.HostIP,
+			"scope":        report.Input.Scope,
+			"limit":        report.Input.Limit,
+			"model":        report.Model,
+			"duration_ms":  report.DurationMS,
+			"generated_at": report.GeneratedAt,
+			"response":     json.RawMessage(report.Report),
+		}),
+	})
+}
+
+func (s *Service) AIReportFailed(ctx context.Context, hostIP string, limit int, model string, err error) {
+	if err == nil {
+		return
+	}
+
+	entityID := reportEntityID(hostIP)
+	_, _ = s.Add(ctx, domain.AppLog{
+		Level:      domain.LevelWarn,
+		Category:   domain.CategoryAI,
+		Event:      domain.EventAIReportFailed,
+		Message:    "ai report failed: " + err.Error(),
+		EntityType: domain.EntityTypeReport,
+		EntityID:   entityID,
+		Actor:      domain.ActorAPI,
+		Source:     domain.SourceAI,
+		MetadataJSON: metadataJSON(map[string]any{
+			"host_ip": hostIP,
+			"scope":   reportScope(hostIP),
+			"limit":   limit,
+			"model":   model,
+			"error":   err.Error(),
+		}),
+	})
+}
+
 func metadataJSON(metadata map[string]any) string {
 	if len(metadata) == 0 {
 		return ""
@@ -250,6 +319,20 @@ func metadataJSON(metadata map[string]any) string {
 		return ""
 	}
 	return string(data)
+}
+
+func reportEntityID(hostIP string) string {
+	if hostIP == "" {
+		return "global"
+	}
+	return hostIP
+}
+
+func reportScope(hostIP string) string {
+	if hostIP == "" {
+		return "global"
+	}
+	return "host"
 }
 
 func listEvent(list, action string) domain.Event {

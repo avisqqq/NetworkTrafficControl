@@ -35,6 +35,14 @@ type SummaryTotals struct {
 	Bytes     uint64 `json:"bytes"`
 }
 
+type KnownHost struct {
+	IP        string    `json:"ip"`
+	Hostname  string    `json:"hostname"`
+	MAC       string    `json:"mac"`
+	FirstSeen time.Time `json:"first_seen"`
+	LastSeen  time.Time `json:"last_seen"`
+}
+
 type PeerSummary struct {
 	HostIP          string    `json:"host_ip"`
 	PeerIP          string    `json:"peer_ip"`
@@ -101,6 +109,8 @@ type BlockedSummary struct {
 type Repository interface {
 	RecordPacket(stat PacketStat) error
 	RecordPackets(stats []PacketStat) error
+	RecordKnownHost(host KnownHost) error
+	KnownHosts() ([]KnownHost, error)
 	Summary(limit int) (Summary, error)
 	HostSummary(ip string, limit int) (Summary, error)
 }

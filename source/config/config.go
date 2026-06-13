@@ -15,6 +15,7 @@ type Config struct {
 	AppLogs     AppLogsConfig     `yaml:"app_logs"`
 	Geo         GeoConfig         `yaml:"geo"`
 	Analytics   AnalyticsConfig   `yaml:"analytics"`
+	AI          AIConfig          `yaml:"ai"`
 }
 
 type PersistenceConfig struct {
@@ -34,6 +35,14 @@ type GeoConfig struct {
 
 type AnalyticsConfig struct {
 	Path string `yaml:"path"`
+}
+
+type AIConfig struct {
+	Enabled        bool   `yaml:"enabled"`
+	Endpoint       string `yaml:"endpoint"`
+	Model          string `yaml:"model"`
+	TimeoutSeconds int    `yaml:"timeout_seconds"`
+	MaxRows        int    `yaml:"max_rows"`
 }
 
 type ServerConfig struct {
@@ -74,6 +83,13 @@ var defaults = Config{
 	},
 	Analytics: AnalyticsConfig{
 		Path: "./data/analytics.db",
+	},
+	AI: AIConfig{
+		Enabled:        false,
+		Endpoint:       "http://127.0.0.1:11434/api/chat",
+		Model:          "qwen2.5:1.5b",
+		TimeoutSeconds: 60,
+		MaxRows:        50,
 	},
 }
 

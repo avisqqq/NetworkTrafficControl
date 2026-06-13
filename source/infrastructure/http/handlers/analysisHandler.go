@@ -11,6 +11,7 @@ import (
 type AnalyticsSummaryProvider interface {
 	Summary(limit int) (analytics.Summary, error)
 	HostSummary(ip string, limit int) (analytics.Summary, error)
+	KnownHosts() ([]analytics.KnownHost, error)
 }
 
 func AnalysisSummaryHandler(provider AnalyticsSummaryProvider) http.HandlerFunc {
@@ -66,5 +67,23 @@ func AnalysisHostHandler(provider AnalyticsSummaryProvider) http.HandlerFunc {
 
 		w.Header().Set("Content-Type", "application/json")
 		_ = json.NewEncoder(w).Encode(summary)
+	}
+}
+
+func AnalysisHostsHandler(provider AnalyticsSummaryProvider) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
+			return
+		}
+
+		hosts, err := provider.KnownHosts()
+		if err != nil {
+			http.Error(w, err.Error(), http.StatusInternalServerError)
+			return
+		}
+
+		w.Header().Set("Content-Type", "application/json")
+		_ = json.NewEncoder(w).Encode(hosts)
 	}
 }

@@ -104,7 +104,8 @@
     const value = Number(flags) || 0
     if (!value) return '—'
 
-    const names = [
+    /** @type {Array<[number, string]>} */
+    const flagNames = [
       [1, 'FIN'],
       [2, 'SYN'],
       [4, 'RST'],
@@ -114,6 +115,8 @@
       [64, 'ECE'],
       [128, 'CWR']
     ]
+
+    const names = flagNames
       .filter(([bit]) => value & bit)
       .map(([, name]) => name)
 
@@ -184,7 +187,8 @@
 
   function paintListButtons(type, ip, active) {
     const value = normalizeIP(ip)
-    document.querySelectorAll('.ip-list-btn').forEach(button => {
+    const buttons = /** @type {NodeListOf<HTMLButtonElement>} */ (document.querySelectorAll('.ip-list-btn'))
+    buttons.forEach(button => {
       if (button.dataset.listType !== type || button.dataset.ip !== value) return
       button.classList.toggle('active', active)
       button.dataset.active = String(active)

@@ -109,6 +109,45 @@ func (s *Service) HostSummary(ip string, limit int) (Summary, error) {
 	return s.repo.HostSummary(ip, limit)
 }
 
+func (s *Service) RecordKnownHosts(hosts []KnownHost) error {
+	for _, host := range hosts {
+		if host.IP == "" {
+			continue
+		}
+		now := s.now()
+		if host.FirstSeen.IsZero() {
+			host.FirstSeen = now
+		}
+		host.LastSeen = now
+		if err := s.repo.RecordKnownHost(host); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *Service) KnownHosts() ([]KnownHost, error) {
+	hosts, err := s.repo.KnownHosts()
+	if err != nil {
+		return nil, err
+	}
+
+	filtered := make([]KnownHost, 0, len(hosts))
+	for _, host := range hosts {
+		addr, err := netip.ParseAddr(host.IP)
+		if err != nil || !addr.Is4() {
+			continue
+		}
+		for _, prefix := range s.localNets {
+			if prefix.Addr().Is4() && prefix.Contains(addr) {
+				filtered = append(filtered, host)
+				break
+			}
+		}
+	}
+	return filtered, nil
+}
+
 func (s *Service) addPending(stat PacketStat) {
 	s.mu.Lock()
 	defer s.mu.Unlock()

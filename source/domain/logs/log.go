@@ -22,6 +22,7 @@ const (
 	CategoryStorage  Category = "storage"
 	CategoryNetwork  Category = "network"
 	CategoryInspect  Category = "inspect"
+	CategoryAI       Category = "ai"
 )
 
 const (
@@ -44,6 +45,10 @@ const (
 	EventGeoLookupSkipped       Event = "geo.lookup.skipped"
 	EventGeoLookupSucceeded     Event = "geo.lookup.succeeded"
 	EventGeoLookupFailed        Event = "geo.lookup.failed"
+
+	EventAIReportRequested Event = "ai.report.requested"
+	EventAIReportSucceeded Event = "ai.report.succeeded"
+	EventAIReportFailed    Event = "ai.report.failed"
 )
 
 const (
@@ -59,6 +64,7 @@ const (
 	SourceStorage     Source = "storage"
 	SourceListManager Source = "list_manager"
 	SourceInspection  Source = "inspection"
+	SourceAI          Source = "ai"
 )
 
 const (
@@ -67,6 +73,7 @@ const (
 	EntityTypeInterface EntityType = "interface"
 	EntityTypeDevice    EntityType = "device"
 	EntityTypePacket    EntityType = "packet"
+	EntityTypeReport    EntityType = "report"
 )
 
 type AppLog struct {

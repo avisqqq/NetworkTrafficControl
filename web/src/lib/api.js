@@ -80,3 +80,19 @@ export async function fetchHostAnalysis(ip, limit = 50) {
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }
+
+export async function fetchKnownHosts() {
+  const res = await fetch("/analysis/hosts");
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function generateAnalysisReport({ ip = "", limit = 5 } = {}) {
+  const res = await fetch("/analysis/report", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ ip, limit }),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}

@@ -30,6 +30,8 @@ elif [ "$TARGET" = "rpi-install-service" ]; then
     :
 elif [ "$TARGET" = "rpi-install-stack" ]; then
     :
+elif [ "$TARGET" = "rpi-install-grafana" ]; then
+    :
 elif [ "$TARGET" = "rpi-build" ]; then
     :
 elif [ "$TARGET" = "local" ]; then
@@ -74,6 +76,33 @@ if [ "$TARGET" = "rpi-install-dependencies" ]; then
         fi
     "
     echo "[✓] Done — reconnect SSH or run: source ~/.profile"
+    exit 0
+fi
+
+# ── rpi-install-grafana ───────────────────────────────────────────────────────
+if [ "$TARGET" = "rpi-install-grafana" ]; then
+    echo "[*] Copying Grafana provisioning to RPi..."
+    REMOTE_GRAFANA_TMP="/tmp/ntc-grafana-provisioning"
+    ssh "${RPI_USER}@${RPI_HOST}" "rm -rf ${REMOTE_GRAFANA_TMP} && mkdir -p ${REMOTE_GRAFANA_TMP}"
+    rsync -az --delete monitoring/grafana/ "${RPI_USER}@${RPI_HOST}:${REMOTE_GRAFANA_TMP}/"
+
+    echo "[*] Restarting Grafana on RPi..."
+    ssh -t "${RPI_USER}@${RPI_HOST}" "
+        sudo mkdir -p ${RPI_DIR}/monitoring/grafana
+        sudo rsync -a --delete ${REMOTE_GRAFANA_TMP}/ ${RPI_DIR}/monitoring/grafana/
+        sudo chown -R ${RPI_USER}:${RPI_USER} ${RPI_DIR}/monitoring/grafana
+        rm -rf ${REMOTE_GRAFANA_TMP}
+        if sudo docker ps -a --format '{{.Names}}' | grep -qx ntc-grafana; then
+            sudo docker restart ntc-grafana
+            sudo docker ps --filter name=ntc-grafana
+        else
+            echo 'ntc-grafana container was not found; run rpi-install-stack once to create it.'
+            exit 1
+        fi
+    "
+    echo "[✓] Grafana provisioning updated"
+    echo ""
+    echo "    Grafana: http://${RPI_HOST}:3000  (admin / admin)"
     exit 0
 fi
 
