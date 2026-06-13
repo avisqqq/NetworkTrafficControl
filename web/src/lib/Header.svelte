@@ -1,14 +1,21 @@
 <script>
+  import { onMount } from 'svelte'
+  import { fetchRuntimeState } from './api.js'
   import { connected, filterStore, pausedStore, capStore, clearEvents, events } from './sse.js'
 
   export let activeView = 'main'
 
   let rowCount = 0
+  let mockMode = false
   events.subscribe(e => rowCount = e.length)
 
   function subtitle() {
     if (activeView === 'live') return 'Live traffic'
     if (activeView === 'hostnames') return 'Network devices'
+    if (activeView === 'metrics') return 'Metrics'
+    if (activeView === 'analysis') return 'Analysis summary'
+    if (activeView === 'system') return 'System monitor'
+    if (activeView === 'logs') return 'Audit logs'
     return 'Overview'
   }
 
@@ -22,6 +29,11 @@
       return Math.min(5000, Math.max(10, next))
     })
   }
+
+  onMount(async () => {
+    const state = await fetchRuntimeState()
+    mockMode = !!state.mockMode
+  })
 </script>
 
 <header class="top">
@@ -53,6 +65,34 @@
       >
         Hostnames
       </button>
+      <button
+        class="nav-tab"
+        class:active={activeView === 'metrics'}
+        on:click={() => activeView = 'metrics'}
+      >
+        Metrics
+      </button>
+      <button
+        class="nav-tab"
+        class:active={activeView === 'analysis'}
+        on:click={() => activeView = 'analysis'}
+      >
+        Analysis
+      </button>
+      <button
+        class="nav-tab"
+        class:active={activeView === 'system'}
+        on:click={() => activeView = 'system'}
+      >
+        System
+      </button>
+      <button
+        class="nav-tab"
+        class:active={activeView === 'logs'}
+        on:click={() => activeView = 'logs'}
+      >
+        Logs
+      </button>
     </nav>
 
     <div class="spacer"></div>
@@ -61,6 +101,10 @@
       <span></span>
       {$connected ? 'SSE online' : 'SSE offline'}
     </div>
+
+    {#if mockMode}
+      <div class="mock-status">Mock</div>
+    {/if}
   </div>
 
   {#if activeView === 'live'}

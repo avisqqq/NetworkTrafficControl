@@ -36,7 +36,7 @@ Grafana
 | `monitoring/victoria/scrape.yaml` | Configures VictoriaMetrics to scrape NTC |
 | `monitoring/docker-compose.yml` | Runs VictoriaMetrics and Grafana |
 | `monitoring/grafana/provisioning/datasources/victoria.yaml` | Configures Grafana to query VictoriaMetrics |
-| `monitoring/grafana/provisioning/dashboards/*.json` | Defines Grafana dashboards |
+| `monitoring/grafana/provisioning/dashboards/json/*.json` | Defines Grafana dashboards |
 
 ## Runtime URLs
 
