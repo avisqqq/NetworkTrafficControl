@@ -17,6 +17,7 @@ import (
 	"ntc/internal/flow"
 	"ntc/internal/mock"
 	"ntc/internal/model"
+	"ntc/internal/network"
 	"ntc/internal/persist"
 	"ntc/internal/stats"
 )
@@ -49,6 +50,9 @@ func main() {
 	if err != nil {
 		log.Fatalf("persist: %v", err)
 	}
+	if err := store.SaveMockMode(*mockMode); err != nil {
+		log.Printf("persist: save mock mode: %v", err)
+	}
 
 	if *mockMode {
 		log.Println("Starting in mock mode — synthetic traffic generator active")
@@ -56,7 +60,11 @@ func main() {
 		mgr = m
 		events = mock.GenerateEvents(ctx, m)
 	} else {
-		m, err := bpf.Load("tc_filter.bpf.o", iface, store)
+		localCIDRs, err := network.LocalCIDRs(cfg.Network.CIDRs, iface)
+		if err != nil {
+			log.Fatalf("network: local cidrs: %v", err)
+		}
+		m, err := bpf.Load("tc_filter.bpf.o", iface, store, localCIDRs)
 		if err != nil {
 			log.Fatal(err)
 		}
@@ -123,7 +131,7 @@ func main() {
 	}()
 
 	addr := cfg.ServerAddr()
-	srv := api.NewServer(addr, "./dist", iface, pathLeases, mgr, sse, ipStats)
+	srv := api.NewServer(addr, "./dist", iface, pathLeases, *mockMode, mgr, sse, ipStats)
 
 	go func() {
 		log.Printf("HTTP listening on %s", addr)

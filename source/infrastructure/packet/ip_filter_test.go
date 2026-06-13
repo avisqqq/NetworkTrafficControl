@@ -72,8 +72,8 @@ func ipv6(addr string) packet.IPKey {
 func TestIpFilter_AddToBlacklist_GoesToBlacklistOnly(t *testing.T) {
 	t.Parallel()
 
-	wl, bl := &mockMap{}, &mockMap{}
-	f := infraebpf.NewIpFilter(wl, bl)
+	ol, wl, bl := &mockMap{}, &mockMap{}, &mockMap{}
+	f := infraebpf.NewIpFilter(ol, wl, bl)
 
 	require.NoError(t, f.AddToBlacklist(ipv4("192.168.1.1")))
 
@@ -85,7 +85,7 @@ func TestIpFilter_AddToBlacklist_PropagatesError(t *testing.T) {
 	t.Parallel()
 
 	bl := &mockMap{addErr: errors.New("map full")}
-	f := infraebpf.NewIpFilter(&mockMap{}, bl)
+	f := infraebpf.NewIpFilter(&mockMap{}, &mockMap{}, bl)
 
 	err := f.AddToBlacklist(ipv4("1.2.3.4"))
 
@@ -96,8 +96,8 @@ func TestIpFilter_AddToBlacklist_PropagatesError(t *testing.T) {
 func TestIpFilter_AddToWhitelist_GoesToWhitelistOnly(t *testing.T) {
 	t.Parallel()
 
-	wl, bl := &mockMap{}, &mockMap{}
-	f := infraebpf.NewIpFilter(wl, bl)
+	ol, wl, bl := &mockMap{}, &mockMap{}, &mockMap{}
+	f := infraebpf.NewIpFilter(ol, wl, bl)
 
 	require.NoError(t, f.AddToWhitelist(ipv4("10.0.0.1")))
 
@@ -108,8 +108,8 @@ func TestIpFilter_AddToWhitelist_GoesToWhitelistOnly(t *testing.T) {
 func TestIpFilter_AddToWhitelist_IPv6(t *testing.T) {
 	t.Parallel()
 
-	wl, bl := &mockMap{}, &mockMap{}
-	f := infraebpf.NewIpFilter(wl, bl)
+	ol, wl, bl := &mockMap{}, &mockMap{}, &mockMap{}
+	f := infraebpf.NewIpFilter(ol, wl, bl)
 
 	require.NoError(t, f.AddToWhitelist(ipv6("::1")))
 
@@ -122,7 +122,7 @@ func TestIpFilter_DeleteFromBlacklist_RemovesEntry(t *testing.T) {
 
 	e := ipv4("1.1.1.1")
 	bl := &mockMap{entries: []packet.IPKey{e}}
-	f := infraebpf.NewIpFilter(&mockMap{}, bl)
+	f := infraebpf.NewIpFilter(&mockMap{},&mockMap{}, bl)
 
 	require.NoError(t, f.DeleteFromBlacklist(e))
 
@@ -133,7 +133,7 @@ func TestIpFilter_DeleteFromBlacklist_PropagatesError(t *testing.T) {
 	t.Parallel()
 
 	bl := &mockMap{delErr: errors.New("map error")}
-	f := infraebpf.NewIpFilter(&mockMap{}, bl)
+	f := infraebpf.NewIpFilter(&mockMap{},&mockMap{}, bl)
 
 	err := f.DeleteFromBlacklist(ipv4("1.1.1.1"))
 
@@ -145,7 +145,7 @@ func TestIpFilter_DeleteFromWhitelist_RemovesEntry(t *testing.T) {
 
 	e := ipv4("8.8.8.8")
 	wl := &mockMap{entries: []packet.IPKey{e}}
-	f := infraebpf.NewIpFilter(wl, &mockMap{})
+	f := infraebpf.NewIpFilter(&mockMap{}, wl, &mockMap{})
 
 	require.NoError(t, f.DeleteFromWhitelist(e))
 
@@ -157,7 +157,7 @@ func TestIpFilter_GetBlacklist_ReturnsAllEntries(t *testing.T) {
 
 	entries := []packet.IPKey{ipv4("1.2.3.4"), ipv4("5.6.7.8")}
 	bl := &mockMap{entries: entries}
-	f := infraebpf.NewIpFilter(&mockMap{}, bl)
+	f := infraebpf.NewIpFilter(&mockMap{}, &mockMap{}, bl)
 
 	got, err := f.GetBlacklist()
 
@@ -170,7 +170,7 @@ func TestIpFilter_GetWhitelist_ReturnsAllEntries(t *testing.T) {
 
 	entries := []packet.IPKey{ipv6("::1"), ipv4("10.0.0.1")}
 	wl := &mockMap{entries: entries}
-	f := infraebpf.NewIpFilter(wl, &mockMap{})
+	f := infraebpf.NewIpFilter(&mockMap{}, wl, &mockMap{})
 
 	got, err := f.GetWhitelist()
 
@@ -181,7 +181,7 @@ func TestIpFilter_GetWhitelist_ReturnsAllEntries(t *testing.T) {
 func TestIpFilter_GetBlacklist_EmptyByDefault(t *testing.T) {
 	t.Parallel()
 
-	f := infraebpf.NewIpFilter(&mockMap{}, &mockMap{})
+	f := infraebpf.NewIpFilter(&mockMap{}, &mockMap{}, &mockMap{})
 
 	got, err := f.GetBlacklist()
 

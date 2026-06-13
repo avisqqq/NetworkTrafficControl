@@ -1,4 +1,4 @@
-package packet
+ package packet
 
 import (
 	"ntc/source/domain/packet"
@@ -8,13 +8,27 @@ import (
 type IpFilter struct {
 	whitelistMap packet.Map[packet.IPKey]
 	blacklistMap packet.Map[packet.IPKey]
+	onlylocalMap packet.Map[packet.IPKey]
 }
 
-func NewIpFilter(whitelistMap, blacklistMap packet.Map[packet.IPKey]) core.IpFilter {
+func NewIpFilter(onlylocalMap, whitelistMap, blacklistMap packet.Map[packet.IPKey]) core.IpFilter {
 	return &IpFilter{
 		whitelistMap: whitelistMap,
 		blacklistMap: blacklistMap,
+		onlylocalMap: onlylocalMap,
 	}
+}
+
+func (f *IpFilter) AddToOnlyLocal(entry packet.IPKey) error {
+	return f.onlylocalMap.Add(entry)
+}
+
+func (f *IpFilter) DeleteFromOnlyLocal(entry packet.IPKey) error {
+	return f.onlylocalMap.Delete(entry)
+}
+
+func (f *IpFilter) GetOnlyLocal() ([]packet.IPKey, error) {
+	return f.onlylocalMap.Get()
 }
 
 func (f *IpFilter) AddToWhitelist(entry packet.IPKey) error {

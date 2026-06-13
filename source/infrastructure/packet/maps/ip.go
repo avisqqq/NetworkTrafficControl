@@ -1,7 +1,7 @@
 package maps
 
 import (
-	"log"
+	"fmt"
 	"ntc/source/domain/packet"
 
 	"github.com/cilium/ebpf"
@@ -20,8 +20,7 @@ func NewIpMap(collation *ebpf.Collection, name string) packet.Map[packet.IPKey] 
 func (m *IpMap) Add(entry packet.IPKey) error {
 	val := uint8(1)
 	if err := m.ebpfMap.Update(entry, val, ebpf.UpdateAny); err != nil {
-		log.Panicf("IpMap:Add -> Failed to add IP to %v : %v", m.name, err)
-		return err
+		return fmt.Errorf("ItpMap.Add: failed to add IP to %s: %w", m.name, err)
 	}
 
 	return nil
@@ -29,8 +28,7 @@ func (m *IpMap) Add(entry packet.IPKey) error {
 
 func (m *IpMap) Delete(entry packet.IPKey) error {
 	if err := m.ebpfMap.Delete(entry); err != nil {
-		log.Panicf("IpMap:Delete -> Failed to remove IP from %v : %v", m.name, err)
-		return err
+		return fmt.Errorf("ItpMap.Delete: failed to remove IP from %s: %w", m.name, err)
 	}
 
 	return nil
@@ -47,8 +45,7 @@ func (m *IpMap) Get() ([]packet.IPKey, error) {
 	}
 
 	if err := iteration.Err(); err != nil {
-		log.Panicf("IpMap:Get -> Failed to iterate IP map of %v : %v", m.name, err)
-		return nil, err
+		return nil, fmt.Errorf("ItpMap.Get: failed to iterate IP of %s: %w", m.name, err)
 	}
 
 	return result, nil

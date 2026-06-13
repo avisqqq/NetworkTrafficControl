@@ -4,7 +4,8 @@ import (
 	"context"
 	"log"
 	"net"
-	"ntc/source/domain/packet/core"
+	domainCore"ntc/source/domain/packet/core"
+	networkCore"ntc/source/domain/network/core"
 	"ntc/source/infrastructure/packet/maps"
 
 	"github.com/cilium/ebpf"
@@ -20,25 +21,31 @@ type Loader struct {
 	packets          *ringbuf.Reader
 }
 
-func NewEbpfLoader() core.EbpfLoader {
+func NewEbpfLoader() domainCore.EbpfLoader {
 	return &Loader{}
 }
 
-func (l *Loader) NewIpFilter() core.IpFilter {
+func (l *Loader) NewIpFilter() domainCore.IpFilter {
 	whitelistMap := maps.NewIpMap(l.collection, "whitelist")
 	blacklistMap := maps.NewIpMap(l.collection, "blacklist")
+	onlylocalMap := maps.NewIpMap(l.collection, "onlylocal")
 
-	return NewIpFilter(whitelistMap, blacklistMap)
+	return NewIpFilter(onlylocalMap, whitelistMap, blacklistMap)
+}
+func (l *Loader) NewCIDRFilter() networkCore.CIDRFilter {
+	v4:= maps.NewCIDRMap(l.collection, "local_nets_v4", 4)
+	v6:= maps.NewCIDRMap(l.collection, "local_nets_v6", 6)
+
+	return NewCIDRFilter(v4, v6)
 }
 
-func (l *Loader) NewReader(ctx context.Context) (core.Reader, error) {
+func (l *Loader) NewReader(ctx context.Context) (domainCore.Reader, error) {
 	reader, err := ringbuf.NewReader(l.collection.Maps["events"])
 	if err != nil {
 		log.Fatalf("ebpf/loader:NewReader -> failed to create ring buffer reader: %v", err)
 		return nil, err
 	}
 	l.packets = reader
-
 	return NewReader(ctx, l.packets), nil
 }
 
@@ -97,6 +104,11 @@ func (l *Loader) AttachProgram() error {
 }
 
 func (l *Loader) Close() error {
+	if l.packets != nil {
+		if err := l.packets.Close(); err != nil {
+			log.Printf("ebpf/loader:Close -> falied to close reader: %v", err)
+		}
+	}
 	if err := l.ingressLink.Close(); err != nil {
 		log.Printf("ebpf/loader:Close -> failed to close ingress link: %v", err)
 		return err
@@ -106,7 +118,8 @@ func (l *Loader) Close() error {
 		log.Printf("ebpf/loader:Close -> failed to close egress link: %v", err)
 		return err
 	}
-
-	l.collection.Close()
+	if l.collection != nil {
+		l.collection.Close()
+	}
 	return nil
 }

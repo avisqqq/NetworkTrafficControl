@@ -12,6 +12,7 @@ type Manager struct {
 	mu        sync.RWMutex
 	blacklist map[string]model.IPKey
 	whitelist map[string]model.IPKey
+	onlylocal map[string]model.IPKey
 	store     *persist.Store
 }
 
@@ -19,6 +20,7 @@ func NewManager(store *persist.Store) *Manager {
 	m := &Manager{
 		blacklist: make(map[string]model.IPKey),
 		whitelist: make(map[string]model.IPKey),
+		onlylocal: make(map[string]model.IPKey),
 		store:     store,
 	}
 	if store != nil {
@@ -93,7 +95,22 @@ func (m *Manager) GetFromBlackList() ([]model.IPEntry, error) {
 	defer m.mu.RUnlock()
 	return toEntries(m.blacklist), nil
 }
-
+func (m *Manager) GetFromOnlyLocalList() ([]model.IPEntry, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+	return toEntries(m.onlylocal), nil
+}
+func (m *Manager) AddToOnlyLocalList(ip string) (model.IPKey, error) {
+	key, err := model.BuildIPKey(ip)
+	if err != nil {
+		return key, err
+	}
+	m.mu.Lock()
+	m.onlylocal[ip] = key
+	m.mu.Unlock()
+	m.save()
+	return key, nil
+}
 func (m *Manager) AddToWhiteList(ip string) (model.IPKey, error) {
 	key, err := model.BuildIPKey(ip)
 	if err != nil {
@@ -101,6 +118,18 @@ func (m *Manager) AddToWhiteList(ip string) (model.IPKey, error) {
 	}
 	m.mu.Lock()
 	m.whitelist[ip] = key
+	m.mu.Unlock()
+	m.save()
+	return key, nil
+}
+
+func (m *Manager) RemoveFromOnlyLocalList(ip string) (model.IPKey, error) {
+	key, err := model.BuildIPKey(ip)
+	if err != nil {
+		return key, err
+	}
+	m.mu.Lock()
+	delete(m.onlylocal, ip)
 	m.mu.Unlock()
 	m.save()
 	return key, nil
@@ -122,6 +151,14 @@ func (m *Manager) GetFromWhiteList() ([]model.IPEntry, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return toEntries(m.whitelist), nil
+}
+
+func (m *Manager) GetLocalNetsV4() ([]model.CIDREntry, error) {
+	return []model.CIDREntry{}, nil
+}
+
+func (m *Manager) GetLocalNetsV6() ([]model.CIDREntry, error) {
+	return []model.CIDREntry{}, nil
 }
 
 func (m *Manager) IsBlacklisted(ip string) bool {

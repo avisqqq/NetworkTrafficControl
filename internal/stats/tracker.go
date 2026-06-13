@@ -11,9 +11,9 @@ import (
 
 // IPTracker maintains per-IP sliding windows, global counters, and flow count.
 type IPTracker struct {
-	mu         sync.RWMutex
-	windows    map[string]*Window
-	Global     Counters
+	mu          sync.RWMutex
+	windows     map[string]*Window
+	Global      Counters
 	activeFlows atomic.Int64
 }
 
@@ -47,18 +47,18 @@ func (t *IPTracker) Update(srcIP string, e model.Event) {
 
 // TopTalker is a single entry in the top-talkers list.
 type TopTalker struct {
-	IP             string `json:"ip"`
-	PktsPerSec     uint64 `json:"pkts_per_sec"`
-	BytesPerSec    uint64 `json:"bytes_per_sec"`
-	UniqueDstPorts int    `json:"unique_dst_ports"`
-	SynCount       uint32 `json:"syn_count"`
-	AckCount       uint32 `json:"ack_count"`
+	IP             string  `json:"ip"`
+	PktsPerSec     float64 `json:"pkts_per_sec"`
+	BytesPerSec    float64 `json:"bytes_per_sec"`
+	UniqueDstPorts int     `json:"unique_dst_ports"`
+	SynCount       uint32  `json:"syn_count"`
+	AckCount       uint32  `json:"ack_count"`
 }
 
 // GlobalSnapshot aggregates all per-IP windows into a metrics snapshot.
 type GlobalSnapshot struct {
-	TotalPktsPerSec  uint64
-	TotalBytesPerSec uint64
+	TotalPktsPerSec  float64
+	TotalBytesPerSec float64
 	ActiveIPs        int
 	ActiveFlows      int64
 	TopTalkers       []TopTalker

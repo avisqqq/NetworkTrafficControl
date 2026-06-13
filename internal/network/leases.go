@@ -113,30 +113,39 @@ func isNeighborState(s string) bool {
 	}
 }
 
-func ReadDevices(iface, path string) ([]NetworkDevice, error) {
+func ReadDevices() ([]NetworkDevice, error) {
+	iface, path := "wlan0", "/var/lib/misc/dnsmasq.leases"
 	leases, leasesErr := ReadDNSMasqLeases(path)
 	nieghbors, nieghErr := ReadNeighbors(iface)
 
-	if leases != nil && nieghErr != nil {
+	if leasesErr != nil && nieghErr != nil {
 		return nil, leasesErr
 	}
 
 	merged := make(map[string]NetworkDevice)
+	byIP := make(map[string]string)
+	byMAC := make(map[string]string)
 
 	for _, d := range leases {
 		key := deviceKey(d)
 		merged[key] = d
+		indexDevice(byIP, byMAC, key, d)
 	}
 	for _, d := range nieghbors {
-		key := deviceKey(d)
+		key := knownDeviceKey(byIP, byMAC, d)
+		if key == "" {
+			key = deviceKey(d)
+		}
 
 		existing, ok := merged[key]
 		if !ok {
 			merged[key] = d
+			indexDevice(byIP, byMAC, key, d)
 			continue
 		}
 
 		merged[key] = mergeDevice(existing, d)
+		indexDevice(byIP, byMAC, key, merged[key])
 	}
 
 	devices := make([]NetworkDevice, 0, len(merged))
@@ -145,6 +154,29 @@ func ReadDevices(iface, path string) ([]NetworkDevice, error) {
 	}
 
 	return devices, nil
+}
+
+func knownDeviceKey(byIP, byMAC map[string]string, d NetworkDevice) string {
+	if d.MAC != "" {
+		if key, ok := byMAC[strings.ToLower(d.MAC)]; ok {
+			return key
+		}
+	}
+	if d.IP != "" {
+		if key, ok := byIP[d.IP]; ok {
+			return key
+		}
+	}
+	return ""
+}
+
+func indexDevice(byIP, byMAC map[string]string, key string, d NetworkDevice) {
+	if d.IP != "" {
+		byIP[d.IP] = key
+	}
+	if d.MAC != "" {
+		byMAC[strings.ToLower(d.MAC)] = key
+	}
 }
 
 func deviceKey(d NetworkDevice) string {

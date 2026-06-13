@@ -20,10 +20,13 @@ type Manager struct {
 	events      *ringbuf.Reader
 	blacklist   *ebpf.Map
 	whitelist   *ebpf.Map
+	onlylocal   *ebpf.Map
+	localNetsV4 *ebpf.Map
+	localNetsV6 *ebpf.Map
 	store       *persist.Store
 }
 
-func Load(objPath, ifaceName string, store *persist.Store) (*Manager, error) {
+func Load(objPath, ifaceName string, store *persist.Store, cidrs []string) (*Manager, error) {
 	spec, err := ebpf.LoadCollectionSpec(objPath)
 	if err != nil {
 		return nil, err
@@ -32,6 +35,23 @@ func Load(objPath, ifaceName string, store *persist.Store) (*Manager, error) {
 	coll, err := ebpf.NewCollection(spec)
 	if err != nil {
 		return nil, err
+	}
+
+	m := &Manager{
+		coll:        coll,
+		blacklist:   coll.Maps["blacklist"],
+		whitelist:   coll.Maps["whitelist"],
+		onlylocal:   coll.Maps["onlylocal"],
+		localNetsV4: coll.Maps["local_nets_v4"],
+		localNetsV6: coll.Maps["local_nets_v6"],
+		store:       store,
+	}
+	if err := loadLocalNets(m.localNetsV4, m.localNetsV6, cidrs); err != nil {
+		coll.Close()
+		return nil, err
+	}
+	if store != nil {
+		m.loadFromStore()
 	}
 
 	iface, err := net.InterfaceByName(ifaceName)
@@ -69,18 +89,9 @@ func Load(objPath, ifaceName string, store *persist.Store) (*Manager, error) {
 		return nil, err
 	}
 
-	m := &Manager{
-		coll:        coll,
-		ingressLink: ingressLink,
-		egressLink:  egressLink,
-		events:      rd,
-		blacklist:   coll.Maps["blacklist"],
-		whitelist:   coll.Maps["whitelist"],
-		store:       store,
-	}
-	if store != nil {
-		m.loadFromStore()
-	}
+	m.ingressLink = ingressLink
+	m.egressLink = egressLink
+	m.events = rd
 	return m, nil
 }
 

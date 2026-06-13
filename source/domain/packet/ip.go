@@ -12,7 +12,14 @@ type IPKey struct {
 
 type IPEntry struct {
 	Version uint8  `json:"version"`
-	Address string `json:"address"`
+	IP      string `json:"ip"`
+}
+
+func IPVersion(ip net.IP) uint8 {
+	if ip.To4() != nil {
+		return 4
+	}
+	return 6
 }
 
 func (k *IPKey) ToString() string {
@@ -36,4 +43,15 @@ func IPKeyFromString(ipStr string) (IPKey, error) {
 	key.Version = 6
 	copy(key.Address[:], ip.To16())
 	return key, nil
+}
+
+func IpKeysToIpEntries(keys []IPKey) ([]IPEntry, error) {
+	entries := make([]IPEntry, 0, len(keys))
+	for _, key := range keys {
+		entries = append(entries, IPEntry{
+			Version: key.Version,
+			IP:      key.ToString(),
+		})
+	}
+	return entries, nil
 }

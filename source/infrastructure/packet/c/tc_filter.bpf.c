@@ -45,6 +45,7 @@ enum event_action {
     ACT_DROP = 1,
     ACT_SKIP = 2,
     ACT_SSH_BYPASS = 3,
+    ACT_ONLY_LOCAL_DROP = 4,
 };
 
 enum stat_key {
@@ -57,6 +58,39 @@ struct ip_key {
     __u8 version;
     __u8 addr[16];
 };
+
+struct cidr4_key{
+    __u32 prefixlen;
+    __u8 addr[4]; 
+};
+
+struct cidr6_key{
+    __u32 prefixlen;
+    __u8 addr[16]; 
+};
+
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(max_entries, 1024);
+    __type(key, struct ip_key);
+    __type(value, __u8);
+} onlylocal SEC(".maps");
+
+struct {
+    __uint(type, BPF_MAP_TYPE_LPM_TRIE);
+    __uint(max_entries, 16); // ??
+    __uint(map_flags, BPF_F_NO_PREALLOC);
+    __type(key, struct cidr4_key);
+    __type(value, __u8);
+} local_nets_v4 SEC(".maps");
+
+struct {
+    __uint(type, BPF_MAP_TYPE_LPM_TRIE);
+    __uint(max_entries, 16); // ??
+    __uint(map_flags, BPF_F_NO_PREALLOC);
+    __type(key, struct cidr6_key);
+    __type(value, __u8);
+} local_nets_v6 SEC(".maps");
 
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);
@@ -91,6 +125,9 @@ struct {
     __type(value, __u64);
 } seq_map SEC(".maps");
 
+
+
+
 static __always_inline void inc_stat(__u32 key) {
     __u64 *v = bpf_map_lookup_elem(&stats, &key);
     if (v)
@@ -106,6 +143,7 @@ static __always_inline __u64 next_seq(void) {
 }
 
 static __always_inline void fill_ipv4_key(struct ip_key *key, __u32 addr) {
+    
     __builtin_memset(key, 0, sizeof(*key));
     key->version = 4;
     __builtin_memcpy(key->addr, &addr, 4);
@@ -115,6 +153,24 @@ static __always_inline void fill_ipv6_key(struct ip_key *key, const struct in6_a
     __builtin_memset(key, 0, sizeof(*key));
     key->version = 6;
     __builtin_memcpy(key->addr, addr, 16);
+}
+
+static __always_inline int dst_is_in_local_v6(const struct in6_addr *dst){
+    struct cidr6_key key = {};
+
+    key.prefixlen = 128;
+    __builtin_memcpy(key.addr, dst, 16);
+
+    return bpf_map_lookup_elem(&local_nets_v6, &key) != 0;
+}
+
+static __always_inline int dst_is_in_local_v4(__u32 dst){
+    struct cidr4_key key = {};
+
+    key.prefixlen = 32;
+    __builtin_memcpy(key.addr, &dst, 4);
+
+    return bpf_map_lookup_elem(&local_nets_v4, &key) != 0;
 }
 
 static __always_inline void emit_event(
@@ -193,16 +249,27 @@ static __always_inline int handle_ipv4(
         src_port = bpf_ntohs(udp->source);
         dst_port = bpf_ntohs(udp->dest);
     }
-
+// for lookup
     struct ip_key src_key, dst_key;
     fill_ipv4_key(&src_key, src);
     fill_ipv4_key(&dst_key, dst);
+
+// Check for local net
+    if (bpf_map_lookup_elem(&onlylocal, &src_key)){
+        if(!dst_is_in_local_v4(dst)){
+        inc_stat(STAT_DROP);
+        emit_event((const __u8 *)&src, (const __u8 *)&dst, 4, ip->protocol,
+                   ACT_ONLY_LOCAL_DROP, direction, src_port, dst_port, pkt_size, tcp_flags);
+        return TC_ACT_SHOT;
+        }
+    }
 
     if (ip->protocol == IPPROTO_TCP && (src_port == 22 || dst_port == 22)) {
         emit_event((const __u8 *)&src, (const __u8 *)&dst, 4, ip->protocol,
                    ACT_SSH_BYPASS, direction, src_port, dst_port, pkt_size, tcp_flags);
         return TC_ACT_OK;
     }
+
 
     if (bpf_map_lookup_elem(&blacklist, &src_key) ||
         bpf_map_lookup_elem(&blacklist, &dst_key)) {
@@ -256,6 +323,16 @@ static __always_inline int handle_ipv6(
     struct ip_key src_key, dst_key;
     fill_ipv6_key(&src_key, &ipv6->saddr);
     fill_ipv6_key(&dst_key, &ipv6->daddr);
+
+//check local
+if (bpf_map_lookup_elem(&onlylocal, &src_key)){
+        if(!dst_is_in_local_v6(&ipv6->daddr)){
+        inc_stat(STAT_DROP);
+        emit_event((const __u8 *)&ipv6->saddr, (const __u8 *)&ipv6->daddr, 6, ipv6->nexthdr,
+                   ACT_ONLY_LOCAL_DROP, direction, src_port, dst_port, pkt_size, tcp_flags);
+        return TC_ACT_SHOT;
+        }
+    }
 
     if (ipv6->nexthdr == IPPROTO_TCP && (src_port == 22 || dst_port == 22)) {
         emit_event((const __u8 *)&ipv6->saddr, (const __u8 *)&ipv6->daddr, 6, ipv6->nexthdr,
