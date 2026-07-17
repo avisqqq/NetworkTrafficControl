@@ -17,7 +17,7 @@ type Alert struct {
 	ID               string
 	RuleID           string
 	RuleType         string
-	Saverity         Saverity
+	Severity         Saverity
 	Message          string
 	DeduplicationKey string
 	TriggeredAt      time.Time

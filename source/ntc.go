@@ -4,6 +4,12 @@ import (
 	"context"
 	"flag"
 	"log"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
+	alerts "ntc/source/application/alerts"
 	appAnalytics "ntc/source/application/analytics"
 	"ntc/source/application/clock"
 	"ntc/source/application/inspection"
@@ -25,13 +31,21 @@ import (
 	infraStorage "ntc/source/infrastructure/storage"
 	infraLog "ntc/source/infrastructure/storage/gorm/repositories"
 	infrasystem "ntc/source/infrastructure/system"
-	"os"
-	"os/signal"
-	"syscall"
-	"time"
 )
 
 func main() {
+	// New functionality
+	rules := []alerts.Rule{
+		alerts.NewForbiddenIpRule(),
+	}
+	alertsConsumer := alerts.NewConsumer(
+		rules,
+		alerts.LogSink{},
+		5*time.Second,
+	)
+
+	//
+
 	mockMode := flag.Bool("mock", false, "run with synthetic packet generator (no eBPF required)")
 	configPath := flag.String("config", "config.yaml", "path to YAML config file")
 	flag.Parse()
@@ -126,6 +140,7 @@ func main() {
 	inspectionService := inspection.NewService(geoProvider, appLog, analyticsRepo)
 	dispatcher := packetstream.NewDispatcher(
 		runtime.Reader,
+		alertsConsumer,
 		sseConsumer,
 		metricsService,
 		analyticsService,
@@ -135,7 +150,6 @@ func main() {
 	server := infrahttp.NewServer(cfg.ServerAddr(), "./dist", networkInterface, leaseFile, runtime.Lists, sse, metricsService, systemService, *mockMode, appLog, appLog, inspectionService, analyticsService, reportService)
 
 	go func() {
-
 		log.Printf("main: listening on %s", server.Addr)
 
 		if err := server.ListenAndServe(); err != nil {
