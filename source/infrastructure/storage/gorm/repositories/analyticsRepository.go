@@ -2,7 +2,7 @@ package repositories
 
 import (
 	"context"
-	"errors"
+	"strings"
 	"time"
 
 	app "ntc/source/application/analytics"
@@ -113,8 +113,9 @@ func (r *AnalyticsRepository) RecordPackets(stats []app.PacketStat) error {
 	}
 
 	return r.db.Transaction(func(tx *gorm.DB) error {
+		countryCache := make(map[uint64]string)
 		for _, stat := range stats {
-			if err := r.recordPacketTx(tx, stat); err != nil {
+			if err := r.recordPacketTx(tx, stat, countryCache); err != nil {
 				return err
 			}
 		}
@@ -122,7 +123,7 @@ func (r *AnalyticsRepository) RecordPackets(stats []app.PacketStat) error {
 	})
 }
 
-func (r *AnalyticsRepository) recordPacketTx(tx *gorm.DB, stat app.PacketStat) error {
+func (r *AnalyticsRepository) recordPacketTx(tx *gorm.DB, stat app.PacketStat, countryCache map[uint64]string) error {
 	host, err := upsertIP(tx, stat.HostIP, stat.HostScope, stat.SeenAt)
 	if err != nil {
 		return err
@@ -147,7 +148,7 @@ func (r *AnalyticsRepository) recordPacketTx(tx *gorm.DB, stat app.PacketStat) e
 	if err := upsertServiceCounter(tx, host.ID, service.ID, stat); err != nil {
 		return err
 	}
-	if err := upsertCountryCounter(tx, host.ID, peer.ID, stat); err != nil {
+	if err := upsertCountryCounter(tx, host.ID, peer, stat, countryCache); err != nil {
 		return err
 	}
 	if stat.Action == "DROP" || stat.Action == "ONLY_LOCAL_DROP" {
@@ -335,8 +336,8 @@ func upsertServiceCounter(tx *gorm.DB, hostID, serviceID uint64, stat app.Packet
 	}).Create(&row).Error
 }
 
-func upsertCountryCounter(tx *gorm.DB, hostID, peerID uint64, stat app.PacketStat) error {
-	countryCode, err := countryCodeForIP(tx, peerID)
+func upsertCountryCounter(tx *gorm.DB, hostID uint64, peer models.AnalyticsIP, stat app.PacketStat, countryCache map[uint64]string) error {
+	countryCode, err := countryCodeForPeer(tx, peer, countryCache)
 	if err != nil {
 		return err
 	}
@@ -380,18 +381,45 @@ func upsertBlockedCounter(tx *gorm.DB, hostID, peerID, serviceID uint64, stat ap
 	}).Create(&row).Error
 }
 
-func countryCodeForIP(tx *gorm.DB, peerID uint64) (string, error) {
-	var enrichment models.AnalyticsIPEnrichment
-	if err := tx.Where("ip_id = ?", peerID).First(&enrichment).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return "UNKNOWN", nil
-		}
+func countryCodeForPeer(tx *gorm.DB, peer models.AnalyticsIP, countryCache map[uint64]string) (string, error) {
+	if countryCode := countryCodeForKnownPeer(peer); countryCode != "" {
+		return countryCode, nil
+	}
+	if countryCode, ok := countryCache[peer.ID]; ok {
+		return countryCode, nil
+	}
+
+	var countryCode string
+	if err := tx.Model(&models.AnalyticsIPEnrichment{}).
+		Select("country_code").
+		Where("ip_id = ?", peer.ID).
+		Limit(1).
+		Scan(&countryCode).Error; err != nil {
 		return "", err
 	}
-	if enrichment.CountryCode == "" {
-		return "UNKNOWN", nil
+	if countryCode == "" {
+		countryCode = "UNKNOWN"
 	}
-	return enrichment.CountryCode, nil
+	countryCache[peer.ID] = countryCode
+	return countryCode, nil
+}
+
+func countryCodeForKnownPeer(peer models.AnalyticsIP) string {
+	if peer.IP == "255.255.255.255" || strings.HasSuffix(peer.IP, ".255") {
+		return "BROADCAST"
+	}
+	switch peer.Scope {
+	case "Private network":
+		return "LOCAL"
+	case "Link-local":
+		return "LINK_LOCAL"
+	case "Multicast":
+		return "MULTICAST"
+	case "Loopback":
+		return "LOOPBACK"
+	default:
+		return ""
+	}
 }
 
 func counterColumns(names ...string) []clause.Column {

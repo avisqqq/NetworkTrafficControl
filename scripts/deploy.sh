@@ -188,6 +188,11 @@ if [ "$TARGET" = "rpi-build" ]; then
 
     echo "[*] Building eBPF on RPi..."
     ssh "${RPI_USER}@${RPI_HOST}" "
+        if [ ! -r /usr/include/bpf/bpf_helpers.h ]; then
+            echo '[✗] Missing /usr/include/bpf/bpf_helpers.h on RPi.'
+            echo '[i] Install the eBPF build dependencies first: ./scripts/deploy.sh rpi-install-dependencies'
+            exit 1
+        fi
         cd ${RPI_DIR}/src/source/infrastructure/packet/c &&
         clang -O2 -g -target bpf -D__TARGET_ARCH_arm64 \
           -I/usr/include/aarch64-linux-gnu \
@@ -197,7 +202,7 @@ if [ "$TARGET" = "rpi-build" ]; then
     echo "[*] Building Go on RPi..."
     ssh "${RPI_USER}@${RPI_HOST}" "
         cd ${RPI_DIR}/src &&
-        /usr/local/go/bin/go build -o ${RPI_DIR}/ntc ./source &&
+        go build -o ${RPI_DIR}/ntc ./source &&
         chmod +x ${RPI_DIR}/ntc &&
         cp ${RPI_DIR}/src/source/infrastructure/packet/c/tc_filter.bpf.o ${RPI_DIR}/tc_filter.bpf.o &&
         rm -rf ${RPI_DIR}/dist &&
@@ -218,6 +223,11 @@ cd web && npm run build && cd ..
 
 echo "[*] Compiling eBPF..."
 cd source/infrastructure/packet/c
+if [ ! -r /usr/include/bpf/bpf_helpers.h ]; then
+    echo "[✗] Missing /usr/include/bpf/bpf_helpers.h."
+    echo "[i] Install libbpf development headers, for example: sudo apt-get install libbpf-dev"
+    exit 1
+fi
 clang -O2 -g -target bpf -D__TARGET_ARCH_${BPF_ARCH} \
   -c tc_filter.bpf.c -o tc_filter.bpf.o
 cd ../../../..

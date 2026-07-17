@@ -84,6 +84,15 @@ if [ -z "$GO_BIN" ]; then
 fi
 
 echo "[*] compiling eBPF"
+if [ ! -r /usr/include/bpf/bpf_helpers.h ]; then
+    echo "[*] installing missing eBPF build headers"
+    sudo_do apt-get update -qq
+    sudo_do apt-get install -y clang llvm libbpf-dev linux-libc-dev libc6-dev
+fi
+if [ ! -r /usr/include/bpf/bpf_helpers.h ]; then
+    echo "[x] missing /usr/include/bpf/bpf_helpers.h after installing libbpf-dev" >&2
+    exit 1
+fi
 cd "$RPI_SRC_DIR/source/infrastructure/packet/c"
 clang -O2 -g -target bpf -D__TARGET_ARCH_arm64 \
   -I/usr/include/aarch64-linux-gnu \
@@ -165,6 +174,11 @@ trap cleanup EXIT
 
 echo "[*] Compiling source eBPF..."
 cd source/infrastructure/packet/c
+if [ ! -r /usr/include/bpf/bpf_helpers.h ]; then
+    echo "[x] missing /usr/include/bpf/bpf_helpers.h"
+    echo "[i] install libbpf development headers, for example: sudo apt-get install libbpf-dev"
+    exit 1
+fi
 clang -O2 -g -target bpf -D__TARGET_ARCH_${BPF_ARCH} \
   -c tc_filter.bpf.c -o tc_filter.bpf.o
 cd "$REPO_ROOT"
