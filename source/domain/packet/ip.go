@@ -55,3 +55,10 @@ func IpKeysToIpEntries(keys []IPKey) ([]IPEntry, error) {
 	}
 	return entries, nil
 }
+
+func (p *Packet) PacketIpsToString() (string, string) {
+	if p.IPVersion == 4 {
+		return net.IP(p.Src[:4]).String(), net.IP(p.Dst[:4]).String()
+	}
+	return net.IP(p.Src[:]).String(), net.IP(p.Dst[:]).String()
+}
