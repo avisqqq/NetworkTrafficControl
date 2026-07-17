@@ -1,7 +1,10 @@
 package repositories
 
 import (
+	"bytes"
 	"context"
+	"log"
+	"strings"
 	"testing"
 	"time"
 
@@ -11,6 +14,7 @@ import (
 
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 func TestAnalyticsRepositorySummaryEmptyDatabase(t *testing.T) {
@@ -118,10 +122,51 @@ func TestAnalyticsRepositoryClassifiesLocalPeerCountryAndUnknownService(t *testi
 	}
 }
 
+func TestAnalyticsRepositoryMissingEnrichmentDoesNotLogRecordNotFound(t *testing.T) {
+	var logs bytes.Buffer
+	repo := NewAnalyticsRepository(testAnalyticsDBWithLogger(t, logger.New(log.New(&logs, "", 0), logger.Config{
+		LogLevel: logger.Info,
+	})))
+	logs.Reset()
+
+	if err := repo.RecordPackets([]app.PacketStat{
+		{
+			HostIP:    "192.168.1.10",
+			PeerIP:    "203.0.113.10",
+			HostScope: "Private network",
+			PeerScope: "Public internet",
+			Proto:     "TCP",
+			Port:      443,
+			Service:   "HTTPS",
+			Direction: "EGRESS",
+			Action:    "PASS",
+			Packets:   1,
+			Bytes:     100,
+			SeenAt:    time.Date(2026, 6, 10, 18, 28, 0, 0, time.UTC),
+		},
+	}); err != nil {
+		t.Fatalf("record packets: %v", err)
+	}
+
+	if strings.Contains(logs.String(), "record not found") {
+		t.Fatalf("expected missing enrichment to be handled without record-not-found logs, got logs:\n%s", logs.String())
+	}
+}
+
 func testAnalyticsDB(t *testing.T) *gorm.DB {
 	t.Helper()
 
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+	return testAnalyticsDBWithLogger(t, nil)
+}
+
+func testAnalyticsDBWithLogger(t *testing.T, gormLogger logger.Interface) *gorm.DB {
+	t.Helper()
+
+	cfg := &gorm.Config{}
+	if gormLogger != nil {
+		cfg.Logger = gormLogger
+	}
+	db, err := gorm.Open(sqlite.Open(":memory:"), cfg)
 	if err != nil {
 		t.Fatalf("open db: %v", err)
 	}
