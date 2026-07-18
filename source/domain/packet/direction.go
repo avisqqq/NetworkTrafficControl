@@ -8,8 +8,12 @@ const (
 )
 
 func ParseDirection(dir uint8) string {
-	if Direction(dir) == DirEgress {
+	switch dir {
+	case uint8(DirIngress):
+		return "INGRESS"
+	case uint8(DirEgress):
 		return "EGRESS"
+	default:
+		return "UNKNOWN"
 	}
-	return "INGRESS"
 }

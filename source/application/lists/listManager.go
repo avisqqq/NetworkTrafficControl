@@ -1,8 +1,8 @@
 package lists
 
 import (
-	"ntc/source/domain/packet"
 	"ntc/source/domain/network"
+	"ntc/source/domain/packet"
 )
 
 type ListManager interface {

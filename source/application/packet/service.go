@@ -2,6 +2,7 @@ package packet
 
 import (
 	"context"
+
 	"ntc/source/application/lists"
 	appNetwork "ntc/source/application/network"
 	"ntc/source/domain/packet/core"
@@ -34,10 +35,11 @@ func (l *PacketApp) Start(ctx context.Context, objPath, iface string, localCIDRs
 
 	ipFilter := l.loader.NewIpFilter()
 	mapFilter := l.loader.NewCIDRFilter()
+	policyFilter := l.loader.NewPolicyFilter()
 	if _, err := appNetwork.NewService(mapFilter).LoadDefaultLocalNets(localCIDRs, iface); err != nil {
 		return nil, err
 	}
-	listService := lists.NewListService(ipFilter, mapFilter)
+	listService := lists.NewListService(ipFilter, mapFilter, policyFilter)
 
 	return &Runtime{
 		Reader: reader,
