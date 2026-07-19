@@ -1,5 +1,10 @@
 package packet
 
+import (
+	"fmt"
+	"strings"
+)
+
 type Direction uint8
 
 const (
@@ -15,5 +20,19 @@ func ParseDirection(dir uint8) string {
 		return "EGRESS"
 	default:
 		return "UNKNOWN"
+	}
+}
+
+func DirectionFromString(value string) (Direction, error) {
+	switch strings.ToUpper(strings.TrimSpace(value)) {
+	case "INGRESS":
+		return DirIngress, nil
+	case "EGRESS":
+		return DirEgress, nil
+	default:
+		return 0, fmt.Errorf(
+			"unsupported direction %q",
+			value,
+		)
 	}
 }

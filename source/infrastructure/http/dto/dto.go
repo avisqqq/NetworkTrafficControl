@@ -12,6 +12,21 @@ type IpResponse struct {
 type CidrRequest struct {
 	CIDR string `json:"cidr"`
 }
+type PolicyRequest struct {
+	IP        string `json:"ip"`
+	Port      uint16 `json:"port"`
+	Protocol  string `json:"protocol"`
+	Direction string `json:"direction"`
+}
+
+type PolicyResponse struct {
+	OK        bool   `json:"ok"`
+	IP        string `json:"ip"`
+	Version   uint8  `json:"version"`
+	Port      uint16 `json:"port"`
+	Protocol  string `json:"protocol"`
+	Direction string `json:"direction"`
+}
 
 type CidrResponse struct {
 	OK        bool   `json:"ok"`
