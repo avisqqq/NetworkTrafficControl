@@ -24,6 +24,9 @@ func NewRule(ip packet.IPKey,
 	if protocol != ProtocolTCP && protocol != ProtocolUDP {
 		return Rule{}, fmt.Errorf("invalid policy protocol: value = %q", protocol)
 	}
+	if direction != packet.DirIngress && direction != packet.DirEgress {
+		return Rule{}, fmt.Errorf("invalid policy direction: value = %q", direction)
+	}
 
 	return Rule{
 		IP:        ip,
@@ -41,4 +44,14 @@ func (r Rule) ToPolicyKey() IpPortRuleKey {
 		Protocol:  uint8(r.Protocol),
 		Direction: uint8(r.Direction),
 	}
+}
+
+func (r Rule) ToString() string {
+	return fmt.Sprintf(
+		"%s:%d/%s->%s",
+		r.IP.ToString(),
+		r.Port,
+		r.Protocol,
+		r.Direction,
+	)
 }

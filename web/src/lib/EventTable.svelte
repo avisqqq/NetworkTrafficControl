@@ -3,6 +3,7 @@
   import { events, pausedStore } from './sse.js'
 
   export let selectedPacket = null
+  export let policies = []
 
   let resumeAfterHover = false
   let resumeAfterScroll = false
@@ -39,6 +40,33 @@
       resumeAfterScroll = false
     }
   }
+
+  function matchingPolicy(packet) {
+    if ((packet.action || '').toUpperCase() !== 'PORT_DROP') return null
+    const protocol = (packet.proto || '').toUpperCase()
+    const direction = (packet.direction || '').toUpperCase()
+    return policies.find(rule =>
+      rule.protocol === protocol &&
+      rule.direction === direction &&
+      (
+        (rule.ip === packet.src && Number(rule.port) === Number(packet.src_port)) ||
+        (rule.ip === packet.dst && Number(rule.port) === Number(packet.dst_port))
+      )
+    )
+  }
+
+  function displayedAction(packet) {
+    return (packet.action || '').toUpperCase() === 'PORT_DROP' ? 'DROP' : (packet.action || '—')
+  }
+
+  function dropReason(packet) {
+    const rule = matchingPolicy(packet)
+    if (rule) return `${rule.ip}:${rule.port}/${rule.protocol}→${rule.direction}`
+    if ((packet.action || '').toUpperCase() === 'PORT_DROP') return 'Policy rule'
+    if ((packet.action || '').toUpperCase() === 'ONLY_LOCAL_DROP') return 'Only-local restriction'
+    if ((packet.action || '').toUpperCase() === 'DROP') return 'Blacklist'
+    return '—'
+  }
 </script>
 
 <div
@@ -59,6 +87,7 @@
         <th>Dir</th>
         <th>Proto</th>
         <th>Action</th>
+        <th>Reason</th>
         <th>Source</th>
         <th>Destination</th>
       </tr>
@@ -75,7 +104,8 @@
           <td class="muted">{e.time}</td>
           <td><span class="badge {(e.direction || 'ingress').toLowerCase()}">{e.direction || '—'}</span></td>
           <td><span class="badge {(e.proto || 'other').toLowerCase()}">{e.proto || '—'}</span></td>
-          <td><span class="badge {(e.action || '').toLowerCase()}">{e.action || '—'}</span></td>
+          <td><span class="badge {displayedAction(e).toLowerCase()}">{displayedAction(e)}</span></td>
+          <td class="drop-reason" title={dropReason(e)}>{dropReason(e)}</td>
           <td class="addr">{e.src}</td>
           <td class="addr">{e.dst}</td>
         </tr>

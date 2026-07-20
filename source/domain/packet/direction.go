@@ -12,6 +12,10 @@ const (
 	DirEgress  Direction = 1
 )
 
+func (d Direction) String() string {
+	return ParseDirection(uint8(d))
+}
+
 func ParseDirection(dir uint8) string {
 	switch dir {
 	case uint8(DirIngress):

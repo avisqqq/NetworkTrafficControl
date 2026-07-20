@@ -6,6 +6,7 @@ import (
 
 	"ntc/source/domain/network"
 	"ntc/source/domain/packet"
+	"ntc/source/domain/policy"
 	"ntc/source/infrastructure/persist"
 )
 
@@ -123,6 +124,20 @@ func (m *PersistentListManager) RemoveFromLocalNetsV6(cidr string) (network.CIDR
 
 func (m *PersistentListManager) GetFromLocalNetsV6() ([]network.CIDREntry, error) {
 	return m.next.GetFromLocalNetsV6()
+}
+
+// policy
+
+func (m *PersistentListManager) AddPolicy(rule policy.Rule) error {
+	return m.next.AddPolicy(rule)
+}
+
+func (m *PersistentListManager) RemovePolicy(rule policy.Rule) error {
+	return m.next.RemovePolicy(rule)
+}
+
+func (m *PersistentListManager) GetPolicy() ([]policy.Rule, error) {
+	return m.next.GetPolicy()
 }
 
 func (m *PersistentListManager) save() {

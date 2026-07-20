@@ -3,11 +3,12 @@ package logs
 import (
 	"context"
 	"encoding/json"
+	"strconv"
+	"time"
+
 	"ntc/source/application/inspection"
 	"ntc/source/application/reports"
 	domain "ntc/source/domain/logs"
-	"strconv"
-	"time"
 )
 
 type Service struct {
@@ -46,6 +47,7 @@ func (s *Service) Warn(ctx context.Context, category domain.Category, event doma
 		Message:  message,
 	})
 }
+
 func (s *Service) Error(ctx context.Context, category domain.Category, event domain.Event, message string) {
 	_, _ = s.Add(ctx, domain.AppLog{
 		Level:    domain.LevelError,
@@ -352,6 +354,11 @@ func listEvent(list, action string) domain.Event {
 			return domain.EventOnlyLocalAdded
 		}
 		return domain.EventOnlyLocalRemoved
+	case "policy":
+		if action == "add" {
+			return domain.EventPolicyAdded
+		}
+		return domain.EventOnlyLocalRemoved
 	case "localnet_v4", "localnet_v6":
 		if action == "add" {
 			return domain.EventLocalNetAdded
@@ -366,6 +373,8 @@ func entityTypeForList(list string) domain.EntityType {
 	switch list {
 	case "localnet_v4", "localnet_v6":
 		return domain.EntityTypeCIDR
+	case "policy":
+		return domain.EntityTypeRule
 	default:
 		return domain.EntityTypeIP
 	}
