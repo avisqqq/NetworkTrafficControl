@@ -8,12 +8,13 @@ const (
 	ActSkip
 	ActSSHBypass
 	ActOnlyLocalDrop
+	ActPortDrop
 	ActUnknown
 )
 
 func ParseAction(act uint8) Action {
 	switch Action(act) {
-	case ActPass, ActDrop, ActSkip, ActSSHBypass, ActOnlyLocalDrop:
+	case ActPass, ActDrop, ActSkip, ActSSHBypass, ActOnlyLocalDrop, ActPortDrop:
 		return Action(act)
 	default:
 		return ActUnknown
@@ -32,6 +33,8 @@ func (a Action) String() string {
 		return "SSH"
 	case ActOnlyLocalDrop:
 		return "ONLY_LOCAL_DROP"
+	case ActPortDrop:
+		return "PORT_DROP"
 	default:
 		return "UNKNOWN"
 	}

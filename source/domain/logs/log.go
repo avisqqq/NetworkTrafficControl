@@ -2,12 +2,14 @@ package logs
 
 import "time"
 
-type Level string
-type Category string
-type Event string
-type EntityType string
-type Actor string
-type Source string
+type (
+	Level      string
+	Category   string
+	Event      string
+	EntityType string
+	Actor      string
+	Source     string
+)
 
 const (
 	LevelInfo  Level = "INFO"
@@ -37,6 +39,9 @@ const (
 	EventOnlyLocalRemoved Event = "onlylocal.removed"
 	EventLocalNetAdded    Event = "localnet.added"
 	EventLocalNetRemoved  Event = "localnet.removed"
+
+	EventPolicyAdded   Event = "policy.added"
+	EventPolicyRemoved Event = "policy.removed"
 
 	EventAPIError     Event = "api.error"
 	EventStorageError Event = "storage.error"
@@ -70,6 +75,7 @@ const (
 const (
 	EntityTypeIP        EntityType = "ip"
 	EntityTypeCIDR      EntityType = "cidr"
+	EntityTypeRule      EntityType = "rule"
 	EntityTypeInterface EntityType = "interface"
 	EntityTypeDevice    EntityType = "device"
 	EntityTypePacket    EntityType = "packet"

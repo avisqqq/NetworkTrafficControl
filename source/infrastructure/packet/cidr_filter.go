@@ -1,21 +1,22 @@
- package packet
+package packet
 
 import (
-	"ntc/source/domain/packet"
 	"ntc/source/domain/network"
+	"ntc/source/domain/packet/core"
 )
 
 type CIDRFilter struct {
-	v4 packet.Map[network.CIDR]
-	v6 packet.Map[network.CIDR]
+	v4 core.Map[network.CIDR]
+	v6 core.Map[network.CIDR]
 }
 
-func NewCIDRFilter(v4Map, v6Map packet.Map[network.CIDR]) *CIDRFilter {
+func NewCIDRFilter(v4Map, v6Map core.Map[network.CIDR]) *CIDRFilter {
 	return &CIDRFilter{
 		v4: v4Map,
 		v6: v6Map,
 	}
 }
+
 func (f *CIDRFilter) DeleteLocalCIDRV4(entry network.CIDR) error {
 	return f.v4.Delete(entry)
 }
@@ -39,3 +40,4 @@ func (f *CIDRFilter) DeleteLocalCIDRV6(entry network.CIDR) error {
 func (f *CIDRFilter) AddLocalCIDRV6(entry network.CIDR) error {
 	return f.v6.Add(entry)
 }
+

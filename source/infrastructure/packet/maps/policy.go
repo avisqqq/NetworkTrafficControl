@@ -3,23 +3,23 @@ package maps
 import (
 	"fmt"
 
-	"ntc/source/domain/packet"
 	"ntc/source/domain/packet/core"
+	"ntc/source/domain/policy"
 
 	"github.com/cilium/ebpf"
 )
 
-type IpMap struct {
+type IPPortMap struct {
 	ebpfMap *ebpf.Map
 	name    string
 }
 
-func NewIpMap(collation *ebpf.Collection, name string) core.Map[packet.IPKey] {
+func NewIPPortMap(collation *ebpf.Collection, name string) core.Map[policy.IpPortRuleKey] {
 	eBPFmap := collation.Maps[name]
-	return &IpMap{ebpfMap: eBPFmap, name: name}
+	return &IPPortMap{ebpfMap: eBPFmap, name: name}
 }
 
-func (m *IpMap) Add(entry packet.IPKey) error {
+func (m *IPPortMap) Add(entry policy.IpPortRuleKey) error {
 	val := uint8(1)
 	if err := m.ebpfMap.Update(entry, val, ebpf.UpdateAny); err != nil {
 		return fmt.Errorf("ItpMap.Add: failed to add IP to %s: %w", m.name, err)
@@ -28,7 +28,7 @@ func (m *IpMap) Add(entry packet.IPKey) error {
 	return nil
 }
 
-func (m *IpMap) Delete(entry packet.IPKey) error {
+func (m *IPPortMap) Delete(entry policy.IpPortRuleKey) error {
 	if err := m.ebpfMap.Delete(entry); err != nil {
 		return fmt.Errorf("ItpMap.Delete: failed to remove IP from %s: %w", m.name, err)
 	}
@@ -36,10 +36,10 @@ func (m *IpMap) Delete(entry packet.IPKey) error {
 	return nil
 }
 
-func (m *IpMap) Get() ([]packet.IPKey, error) {
-	var result []packet.IPKey
+func (m *IPPortMap) Get() ([]policy.IpPortRuleKey, error) {
+	var result []policy.IpPortRuleKey
 	iteration := m.ebpfMap.Iterate()
-	var key packet.IPKey
+	var key policy.IpPortRuleKey
 	var value uint8
 
 	for iteration.Next(&key, &value) {
@@ -53,6 +53,6 @@ func (m *IpMap) Get() ([]packet.IPKey, error) {
 	return result, nil
 }
 
-func (m *IpMap) Close() error {
+func (m *IPPortMap) Close() error {
 	return m.ebpfMap.Close()
 }

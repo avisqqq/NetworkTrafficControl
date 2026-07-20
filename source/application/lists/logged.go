@@ -5,6 +5,7 @@ import (
 
 	"ntc/source/domain/network"
 	"ntc/source/domain/packet"
+	"ntc/source/domain/policy"
 )
 
 type ActionLogger interface {
@@ -112,6 +113,31 @@ func (m *LoggedListManager) logIPResult(list, action, raw string, key packet.IPK
 func (m *LoggedListManager) logCIDRResult(list, action, raw string, key network.CIDR, err error) {
 	if err != nil {
 		m.logger.ListActionFailed(context.Background(), list, action, raw, err)
+		return
+	}
+	m.logger.ListActionSucceeded(context.Background(), list, action, key.ToString())
+}
+
+// Policy
+func (m *LoggedListManager) AddPolicy(rule policy.Rule) error {
+	err := m.next.AddPolicy(rule)
+	m.logPolicy("policy", "add", rule, err)
+	return err
+}
+
+func (m *LoggedListManager) RemovePolicy(rule policy.Rule) error {
+	err := m.next.RemovePolicy(rule)
+	m.logPolicy("policy", "remove", rule, err)
+	return err
+}
+
+func (m *LoggedListManager) GetPolicy() ([]policy.Rule, error) {
+	return m.next.GetPolicy()
+}
+
+func (m *LoggedListManager) logPolicy(list, action string, key policy.Rule, err error) {
+	if err != nil {
+		m.logger.ListActionFailed(context.Background(), list, action, key.ToString(), err)
 		return
 	}
 	m.logger.ListActionSucceeded(context.Background(), list, action, key.ToString())

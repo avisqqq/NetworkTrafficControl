@@ -85,6 +85,10 @@ body {
   margin: 0 auto;
 }
 
+.live-layout {
+  max-width: 1600px;
+}
+
 /* ── Header ──────────────────────────────────────────────────────────────── */
 .top {
   position: sticky;
@@ -613,6 +617,138 @@ a.btn {
   display: flex;
   flex-direction: column;
   gap: 12px;
+}
+
+.policy-panel {
+  width: 286px;
+  flex: 0 0 286px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.policy-form label {
+  display: grid;
+  gap: 5px;
+}
+
+.policy-form label > span,
+.packet-rule-fill > span {
+  color: var(--text-3);
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: .45px;
+  text-transform: uppercase;
+}
+
+.policy-field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.policy-form select.input {
+  appearance: none;
+  cursor: pointer;
+}
+
+.packet-rule-fill {
+  display: grid;
+  gap: 7px;
+  padding: 9px;
+  border: 1px solid rgba(96, 165, 250, .24);
+  border-radius: var(--radius-sm);
+  background: var(--blue-dim);
+}
+
+.packet-rule-fill > div {
+  display: flex;
+  gap: 6px;
+}
+
+.packet-rule-fill .mini-toggle {
+  flex: 1;
+}
+
+.policy-add {
+  justify-content: center;
+}
+
+.policy-error {
+  color: var(--rose);
+  font-size: 11px;
+}
+
+.policy-count {
+  min-width: 22px;
+  padding: 1px 7px;
+  border-radius: var(--radius-pill);
+  background: var(--rose-dim);
+  color: var(--rose);
+  font-size: 11px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.policy-list {
+  max-height: 420px;
+  overflow-y: auto;
+}
+
+.policy-rule {
+  display: flex;
+  align-items: stretch;
+  border-bottom: 1px solid rgba(30, 45, 66, .5);
+}
+
+.policy-rule:last-child {
+  border-bottom: 0;
+}
+
+.policy-rule-main {
+  min-width: 0;
+  flex: 1;
+  display: grid;
+  gap: 2px;
+  padding: 9px 12px;
+  border: 0;
+  background: transparent;
+  color: var(--text-2);
+  font-family: var(--font-mono);
+  text-align: left;
+  cursor: pointer;
+}
+
+.policy-rule-main:hover {
+  background: var(--surface-2);
+}
+
+.policy-rule-main strong {
+  overflow: hidden;
+  color: var(--text);
+  font-size: 11.5px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.policy-rule-main span {
+  color: var(--text-3);
+  font-size: 10.5px;
+}
+
+.policy-remove {
+  width: 36px;
+  border: 0;
+  border-left: 1px solid rgba(30, 45, 66, .5);
+  background: transparent;
+  color: var(--text-3);
+  font-size: 18px;
+  cursor: pointer;
+}
+
+.policy-remove:hover {
+  background: var(--rose-dim);
+  color: var(--rose);
 }
 
 .panel-header {
@@ -2111,12 +2247,38 @@ td.addr    { word-break: break-all; min-width: 120px; }
 .badge.pass   { color: var(--emerald); border-color: rgba(52, 211, 153, .28);  background: var(--emerald-dim); }
 .badge.drop   { color: var(--rose);    border-color: rgba(251, 113, 133, .28); background: var(--rose-dim); }
 .badge.only_local_drop { color: var(--rose); border-color: rgba(251, 113, 133, .28); background: var(--rose-dim); }
+.badge.port_drop { color: var(--rose); border-color: rgba(251, 113, 133, .28); background: var(--rose-dim); }
 .badge.skip   { color: var(--amber);   border-color: rgba(251, 191, 36, .28);  background: var(--amber-dim); }
 .badge.ssh    { color: var(--blue);    border-color: rgba(96, 165, 250, .28);  background: var(--blue-dim); }
 
 /* direction */
 .badge.ingress { color: var(--blue);   border-color: rgba(96, 165, 250, .28);  background: var(--blue-dim); }
 .badge.egress  { color: var(--amber);  border-color: rgba(251, 191, 36, .28);  background: var(--amber-dim); }
+
+.drop-reason {
+  max-width: 230px;
+  overflow: hidden;
+  color: var(--text-3);
+  font-size: 11px;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 1180px) {
+  .live-layout {
+    flex-wrap: wrap;
+  }
+
+  .live-layout .table-card {
+    order: 3;
+    flex-basis: 100%;
+  }
+
+  .policy-panel {
+    flex: 1;
+    min-width: 286px;
+  }
+}
 
 /* ── Meta text ───────────────────────────────────────────────────────────── */
 .meta {

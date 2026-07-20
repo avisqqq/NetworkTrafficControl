@@ -1,14 +1,16 @@
 package core
 
-import 
-(
-"context"
-"ntc/source/domain/network/core"
+import (
+	"context"
+
+	coreNetwork "ntc/source/domain/network/core"
+	corePolicy "ntc/source/domain/policy/core"
 )
 
 type EbpfLoader interface {
 	NewIpFilter() IpFilter
-	NewCIDRFilter() core.CIDRFilter
+	NewCIDRFilter() coreNetwork.CIDRFilter
+	NewPolicyFilter() corePolicy.PolicyFilter
 
 	LoadCollection(objPath string) error
 	ListenInterface(interfaceName string) error
