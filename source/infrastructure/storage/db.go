@@ -27,6 +27,20 @@ func OpenAnalytics(path string) (*gorm.DB, error) {
 	)
 }
 
+// Close releases the underlying connection pool, letting in-flight statements
+// finish instead of leaving the handle to the OS at process exit. These
+// databases currently run in SQLite's default rollback-journal mode, where
+// that is a tidiness win rather than a correctness one -- but it becomes a
+// correctness one the moment WAL is enabled, and shutdown is the wrong place
+// to discover that.
+func Close(db *gorm.DB) error {
+	sqlDB, err := db.DB()
+	if err != nil {
+		return err
+	}
+	return sqlDB.Close()
+}
+
 func open(path string, migrate ...any) (*gorm.DB, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return nil, err

@@ -74,6 +74,11 @@ func run(configPath string, mockMode bool) error {
 	if err != nil {
 		return fmt.Errorf("open app log database %s: %w", cfg.AppLogs.Path, err)
 	}
+	defer func() {
+		if err := infraStorage.Close(appLogDb); err != nil {
+			log.Printf("main: close app log database: %v", err)
+		}
+	}()
 	appLogRepo := infraLog.NewAppLogRepository(appLogDb)
 	appLog := appLogService.NewService(appLogRepo)
 	appLog.ConfigLoaded(ctx)
@@ -122,9 +127,17 @@ func run(configPath string, mockMode bool) error {
 	if err != nil {
 		return fmt.Errorf("open analytics database %s: %w", cfg.Analytics.Path, err)
 	}
+	defer func() {
+		if err := infraStorage.Close(analyticsDb); err != nil {
+			log.Printf("main: close analytics database: %v", err)
+		}
+	}()
 	analyticsRepo := infraLog.NewAnalyticsRepository(analyticsDb)
 	analyticsService := appAnalytics.NewService(analyticsRepo, localCIDRs)
 	analyticsService.Start(ctx)
+	// Registered after the database close above, so LIFO drains the buffer
+	// first and only then takes the database away.
+	defer analyticsService.Close()
 	var aiClient appReports.AIClient
 	if cfg.AI.Enabled {
 		aiClient = infraai.NewOllamaClient(
