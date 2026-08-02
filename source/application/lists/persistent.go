@@ -6,42 +6,44 @@ import (
 
 	"ntc/source/domain/network"
 	"ntc/source/domain/packet"
-	"ntc/source/infrastructure/persist"
 )
 
 type StorageLogger interface {
 	StorageError(ctx context.Context, operation string, err error)
 }
 
+// ListStore persists the IP lists. It is deliberately expressed in plain
+// slices so neither side needs to know the other's storage format.
+type ListStore interface {
+	LoadLists() (blacklist, whitelist []string, err error)
+	SaveLists(blacklist, whitelist []string) error
+}
+
 type PersistentListManager struct {
 	next   ListManager
-	store  *persist.Store
+	store  ListStore
 	logger StorageLogger
 }
 
-func NewPersistentListManager(next ListManager, store *persist.Store, logger StorageLogger) *PersistentListManager {
+func NewPersistentListManager(next ListManager, store ListStore, logger StorageLogger) *PersistentListManager {
 	return &PersistentListManager{next: next, store: store, logger: logger}
 }
 
-func RestorePersistentLists(next ListManager, store *persist.Store, logger StorageLogger) {
-	if store == nil {
-		return
-	}
-
-	data, err := store.Load()
+func RestorePersistentLists(next ListManager, store ListStore, logger StorageLogger) {
+	blacklist, whitelist, err := store.LoadLists()
 	if err != nil {
 		log.Printf("persist: load failed: %v", err)
 		logStorageError(logger, "load persistent lists", err)
 		return
 	}
 
-	for _, ip := range data.Blacklist {
+	for _, ip := range blacklist {
 		if _, err := next.AddToBlackListByString(ip); err != nil {
 			log.Printf("persist: restore blacklist %s: %v", ip, err)
 			logStorageError(logger, "restore blacklist "+ip, err)
 		}
 	}
-	for _, ip := range data.Whitelist {
+	for _, ip := range whitelist {
 		if _, err := next.AddToWhiteListByString(ip); err != nil {
 			log.Printf("persist: restore whitelist %s: %v", ip, err)
 			logStorageError(logger, "restore whitelist "+ip, err)

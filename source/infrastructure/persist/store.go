@@ -44,6 +44,14 @@ func (s *Store) Load() (Data, error) {
 	return d, nil
 }
 
+func (s *Store) LoadLists() (blacklist, whitelist []string, err error) {
+	d, err := s.Load()
+	if err != nil {
+		return nil, nil, err
+	}
+	return d.Blacklist, d.Whitelist, nil
+}
+
 func (s *Store) SaveLists(blacklist, whitelist []string) error {
 	d, err := s.Load()
 	if err != nil {
