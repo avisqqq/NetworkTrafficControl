@@ -1,6 +1,8 @@
 # 3. SSH traffic bypasses the blacklist
 
 Status: Accepted, retrospectively — 2026-08-02. See *Open question*.
+Enforcement moves to nftables under [ADR 0004](0004-nftables-enforces-ebpf-and-nflog-observe.md);
+this record stands until the replacement rule exists, and is superseded by it.
 
 ## Context
 
