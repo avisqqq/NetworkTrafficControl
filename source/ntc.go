@@ -83,7 +83,13 @@ func main() {
 		}
 	} else {
 		loader := infrapacket.NewEbpfLoader()
-		defer loader.Close()
+		// Detaching the TC program is the last thing that happens; there is
+		// nobody left to hand the error to, so log it and carry on.
+		defer func() {
+			if err := loader.Close(); err != nil {
+				log.Printf("main: close ebpf loader: %v", err)
+			}
+		}()
 
 		packetApp := packetapp.NewPacketApp(loader)
 		runtime, err = packetApp.Start(ctx, "tc_filter.bpf.o", networkInterface, localCIDRs)

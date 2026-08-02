@@ -57,6 +57,13 @@ linters:
         linters:
           - errcheck
 
+issues:
+  # Defaults are max-issues-per-linter: 50 and max-same-issues: 3, which hide
+  # findings without saying so -- a gate that silently truncates reads as
+  # "clean". Report everything.
+  max-issues-per-linter: 0
+  max-same-issues: 0
+
 formatters:
   enable:
     - gofmt

@@ -21,7 +21,7 @@ func HostnameHandler(iface, leaseFile string, mockMode bool, recorder KnownHostR
 
 		if mockMode {
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(network.MockDevices())
+			_ = json.NewEncoder(w).Encode(network.MockDevices())
 			return
 		}
 
@@ -34,7 +34,7 @@ func HostnameHandler(iface, leaseFile string, mockMode bool, recorder KnownHostR
 			_ = recorder.RecordKnownHosts(knownHostsFromDevices(devices))
 		}
 		w.Header().Set("Content-Type", "application/json")
-		json.NewEncoder(w).Encode(devices)
+		_ = json.NewEncoder(w).Encode(devices)
 	}
 }
 

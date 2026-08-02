@@ -26,7 +26,7 @@ func IpHandler(
 				http.Error(w, err.Error(), 400)
 				return
 			}
-			json.NewEncoder(w).Encode(dto.IpResponse{
+			_ = json.NewEncoder(w).Encode(dto.IpResponse{
 				OK:      true,
 				IP:      key.ToString(),
 				Version: key.Version,
@@ -43,7 +43,7 @@ func IpHandler(
 				http.Error(w, err.Error(), 400)
 				return
 			}
-			json.NewEncoder(w).Encode(dto.IpResponse{
+			_ = json.NewEncoder(w).Encode(dto.IpResponse{
 				OK:      true,
 				IP:      key.ToString(),
 				Version: key.Version,
@@ -55,7 +55,7 @@ func IpHandler(
 				http.Error(w, err.Error(), 500)
 				return
 			}
-			json.NewEncoder(w).Encode(list)
+			_ = json.NewEncoder(w).Encode(list)
 
 		default:
 			http.Error(w, "method not allowed", 405)

@@ -17,7 +17,7 @@ func ReadDNSMasqLeases(path string) ([]NetworkDevice, error) {
 		return nil, err
 	}
 
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 
 	var devices []NetworkDevice
 

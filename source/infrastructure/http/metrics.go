@@ -121,7 +121,9 @@ func metricsHandler(metrics MetricsProvider) http.HandlerFunc {
 		}
 		b.WriteByte('\n')
 
-		fmt.Fprint(w, b.String())
+		// Response is already committed; a write failure means the scraper
+		// hung up and there is nothing left to report it on.
+		_, _ = fmt.Fprint(w, b.String())
 	}
 }
 
