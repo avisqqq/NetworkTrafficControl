@@ -6,18 +6,18 @@ import (
 	"ntc/source/domain/packet"
 )
 
-type Saverity string
+type Severity string
 
 const (
-	SaverityWarning  Saverity = "warning"
-	SaverityCritical Saverity = "critical"
+	SeverityWarning  Severity = "warning"
+	SeverityCritical Severity = "critical"
 )
 
 type Alert struct {
 	ID               string
 	RuleID           string
 	RuleType         string
-	Saverity         Saverity
+	Severity         Severity
 	Message          string
 	DeduplicationKey string
 	TriggeredAt      time.Time

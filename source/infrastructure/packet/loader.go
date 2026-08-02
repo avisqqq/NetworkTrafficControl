@@ -27,12 +27,12 @@ func NewEbpfLoader() packet.EbpfLoader {
 	return &Loader{}
 }
 
-func (l *Loader) NewIpFilter() lists.IpFilter {
-	whitelistMap := maps.NewIpMap(l.collection, "whitelist")
-	blacklistMap := maps.NewIpMap(l.collection, "blacklist")
-	onlylocalMap := maps.NewIpMap(l.collection, "onlylocal")
+func (l *Loader) NewIPFilter() lists.IPFilter {
+	whitelistMap := maps.NewIPMap(l.collection, "whitelist")
+	blacklistMap := maps.NewIPMap(l.collection, "blacklist")
+	onlylocalMap := maps.NewIPMap(l.collection, "onlylocal")
 
-	return NewIpFilter(onlylocalMap, whitelistMap, blacklistMap)
+	return NewIPFilter(onlylocalMap, whitelistMap, blacklistMap)
 }
 func (l *Loader) NewCIDRFilter() networkCore.CIDRFilter {
 	v4 := maps.NewCIDRMap(l.collection, "local_nets_v4", 4)

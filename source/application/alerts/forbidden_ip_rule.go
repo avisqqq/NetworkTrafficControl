@@ -7,25 +7,25 @@ import (
 	"ntc/source/domain/packet"
 )
 
-type ForbiddenIpRule struct{}
+type ForbiddenIPRule struct{}
 
-func NewForbiddenIpRule() ForbiddenIpRule {
-	return ForbiddenIpRule{}
+func NewForbiddenIPRule() ForbiddenIPRule {
+	return ForbiddenIPRule{}
 }
 
-func (ForbiddenIpRule) ID() string {
+func (ForbiddenIPRule) ID() string {
 	return "blacklisted-ip"
 }
 
-func (ForbiddenIpRule) Type() string {
+func (ForbiddenIPRule) Type() string {
 	return "forbidden-ip"
 }
 
-func (ForbiddenIpRule) Severity() alert.Saverity {
-	return alert.SaverityCritical
+func (ForbiddenIPRule) Severity() alert.Severity {
+	return alert.SeverityCritical
 }
 
-func (ForbiddenIpRule) Evaluate(p packet.Packet) (Match, bool) {
+func (ForbiddenIPRule) Evaluate(p packet.Packet) (Match, bool) {
 	if packet.ParseAction(p.Action) != packet.ActDrop {
 		return Match{}, false
 	}

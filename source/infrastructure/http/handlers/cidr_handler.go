@@ -61,7 +61,7 @@ func CidrHandler(
 			_ = json.NewEncoder(w).Encode(list)
 
 		default:
-			http.Error(w, "method not allowed", 405)
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		}
 	}
 }

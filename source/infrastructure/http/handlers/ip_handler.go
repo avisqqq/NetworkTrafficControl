@@ -7,7 +7,7 @@ import (
 	"ntc/source/infrastructure/http/dto"
 )
 
-func IpHandler(
+func IPHandler(
 	add func(string) (packet.IPKey, error),
 	remove func(string) (packet.IPKey, error),
 	getAll func() ([]packet.IPEntry, error),
@@ -16,7 +16,7 @@ func IpHandler(
 		switch r.Method {
 
 		case http.MethodPost:
-			var req dto.IpRequest
+			var req dto.IPRequest
 			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 				http.Error(w, "bad json", 400)
 				return
@@ -26,7 +26,7 @@ func IpHandler(
 				http.Error(w, err.Error(), 400)
 				return
 			}
-			_ = json.NewEncoder(w).Encode(dto.IpResponse{
+			_ = json.NewEncoder(w).Encode(dto.IPResponse{
 				OK:      true,
 				IP:      key.ToString(),
 				Version: key.Version,
@@ -43,7 +43,7 @@ func IpHandler(
 				http.Error(w, err.Error(), 400)
 				return
 			}
-			_ = json.NewEncoder(w).Encode(dto.IpResponse{
+			_ = json.NewEncoder(w).Encode(dto.IPResponse{
 				OK:      true,
 				IP:      key.ToString(),
 				Version: key.Version,
@@ -58,7 +58,7 @@ func IpHandler(
 			_ = json.NewEncoder(w).Encode(list)
 
 		default:
-			http.Error(w, "method not allowed", 405)
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		}
 	}
 }

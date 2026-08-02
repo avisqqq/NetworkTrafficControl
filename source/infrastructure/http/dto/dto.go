@@ -1,10 +1,10 @@
 package dto
 
-type IpRequest struct {
+type IPRequest struct {
 	IP string `json:"ip"`
 }
 
-type IpResponse struct {
+type IPResponse struct {
 	OK      bool   `json:"ok"`
 	IP      string `json:"ip"`
 	Version uint8  `json:"version"`
