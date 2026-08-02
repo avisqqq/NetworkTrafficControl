@@ -4,8 +4,8 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"ntc/source/application/packetstream"
 	"ntc/source/domain/packet"
-	"ntc/source/domain/packet/core"
 
 	"github.com/cilium/ebpf/ringbuf"
 )
@@ -15,7 +15,7 @@ type Reader struct {
 	reader  *ringbuf.Reader
 }
 
-func NewReader(ctx context.Context, reader *ringbuf.Reader) core.Reader {
+func NewReader(ctx context.Context, reader *ringbuf.Reader) packetstream.Reader {
 	return &Reader{
 		context: ctx,
 		reader:  reader,

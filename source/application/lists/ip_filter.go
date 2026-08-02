@@ -1,4 +1,4 @@
-package core
+package lists
 
 import "ntc/source/domain/packet"
 

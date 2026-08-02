@@ -4,8 +4,10 @@ import (
 	"context"
 	"log"
 	"net"
-	domainCore"ntc/source/domain/packet/core"
-	networkCore"ntc/source/domain/network/core"
+	"ntc/source/application/lists"
+	"ntc/source/application/packet"
+	"ntc/source/application/packetstream"
+	networkCore "ntc/source/domain/network/core"
 	"ntc/source/infrastructure/packet/maps"
 
 	"github.com/cilium/ebpf"
@@ -21,11 +23,11 @@ type Loader struct {
 	packets          *ringbuf.Reader
 }
 
-func NewEbpfLoader() domainCore.EbpfLoader {
+func NewEbpfLoader() packet.EbpfLoader {
 	return &Loader{}
 }
 
-func (l *Loader) NewIpFilter() domainCore.IpFilter {
+func (l *Loader) NewIpFilter() lists.IpFilter {
 	whitelistMap := maps.NewIpMap(l.collection, "whitelist")
 	blacklistMap := maps.NewIpMap(l.collection, "blacklist")
 	onlylocalMap := maps.NewIpMap(l.collection, "onlylocal")
@@ -33,13 +35,13 @@ func (l *Loader) NewIpFilter() domainCore.IpFilter {
 	return NewIpFilter(onlylocalMap, whitelistMap, blacklistMap)
 }
 func (l *Loader) NewCIDRFilter() networkCore.CIDRFilter {
-	v4:= maps.NewCIDRMap(l.collection, "local_nets_v4", 4)
-	v6:= maps.NewCIDRMap(l.collection, "local_nets_v6", 6)
+	v4 := maps.NewCIDRMap(l.collection, "local_nets_v4", 4)
+	v6 := maps.NewCIDRMap(l.collection, "local_nets_v6", 6)
 
 	return NewCIDRFilter(v4, v6)
 }
 
-func (l *Loader) NewReader(ctx context.Context) (domainCore.Reader, error) {
+func (l *Loader) NewReader(ctx context.Context) (packetstream.Reader, error) {
 	reader, err := ringbuf.NewReader(l.collection.Maps["events"])
 	if err != nil {
 		log.Fatalf("ebpf/loader:NewReader -> failed to create ring buffer reader: %v", err)
