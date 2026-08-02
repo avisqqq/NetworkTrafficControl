@@ -4,16 +4,16 @@ import (
 	"context"
 	"ntc/source/application/lists"
 	appNetwork "ntc/source/application/network"
-	"ntc/source/domain/packet/core"
+	"ntc/source/application/packetstream"
 )
 
 type Runtime struct {
-	Reader core.Reader
+	Reader packetstream.Reader
 	Lists  lists.ListManager
 }
 
 type PacketApp struct {
-	loader core.EbpfLoader
+	loader EbpfLoader
 }
 
 func (l *PacketApp) Start(ctx context.Context, objPath, iface string, localCIDRs []string) (*Runtime, error) {
@@ -45,6 +45,6 @@ func (l *PacketApp) Start(ctx context.Context, objPath, iface string, localCIDRs
 	}, nil
 }
 
-func NewPacketApp(l core.EbpfLoader) *PacketApp {
+func NewPacketApp(l EbpfLoader) *PacketApp {
 	return &PacketApp{loader: l}
 }

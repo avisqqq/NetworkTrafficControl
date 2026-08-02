@@ -1,4 +1,4 @@
-package core
+package packetstream
 
 import "ntc/source/domain/packet"
 

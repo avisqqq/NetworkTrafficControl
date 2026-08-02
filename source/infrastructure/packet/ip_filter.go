@@ -1,8 +1,8 @@
- package packet
+package packet
 
 import (
+	"ntc/source/application/lists"
 	"ntc/source/domain/packet"
-	"ntc/source/domain/packet/core"
 )
 
 type IpFilter struct {
@@ -11,7 +11,7 @@ type IpFilter struct {
 	onlylocalMap packet.Map[packet.IPKey]
 }
 
-func NewIpFilter(onlylocalMap, whitelistMap, blacklistMap packet.Map[packet.IPKey]) core.IpFilter {
+func NewIpFilter(onlylocalMap, whitelistMap, blacklistMap packet.Map[packet.IPKey]) lists.IpFilter {
 	return &IpFilter{
 		whitelistMap: whitelistMap,
 		blacklistMap: blacklistMap,
