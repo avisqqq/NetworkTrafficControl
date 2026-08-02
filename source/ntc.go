@@ -2,8 +2,11 @@ package main
 
 import (
 	"context"
+	"errors"
 	"flag"
+	"fmt"
 	"log"
+	"net/http"
 	appAnalytics "ntc/source/application/analytics"
 	"ntc/source/application/clock"
 	"ntc/source/application/inspection"
@@ -36,12 +39,21 @@ func main() {
 	configPath := flag.String("config", "config.yaml", "path to YAML config file")
 	flag.Parse()
 
-	cfg, err := config.Load(*configPath)
+	// The single exit point of the program. Everything else returns an error,
+	// so deferred cleanup -- detaching the TC program above all -- still runs
+	// on failure paths. log.Fatal calls os.Exit, which does not run defers.
+	if err := run(*configPath, *mockMode); err != nil {
+		log.Fatalf("main: %v", err)
+	}
+}
+
+func run(configPath string, mockMode bool) error {
+	cfg, err := config.Load(configPath)
 	if err != nil {
-		log.Fatalf("config: %v", err)
+		return fmt.Errorf("load config %s: %w", configPath, err)
 	}
 	if len(cfg.Network.Interfaces) == 0 {
-		log.Fatal("config: network.interfaces must contain at least one interface")
+		return errors.New("config: network.interfaces must contain at least one interface")
 	}
 
 	networkInterface := cfg.Network.Interfaces[0]
@@ -49,22 +61,23 @@ func main() {
 
 	store, err := persist.New(cfg.Persistence.Path)
 	if err != nil {
-		log.Fatalf("persist: %v", err)
+		return fmt.Errorf("open persistent store %s: %w", cfg.Persistence.Path, err)
 	}
-	if err := store.SaveMockMode(*mockMode); err != nil {
+	if err := store.SaveMockMode(mockMode); err != nil {
 		log.Printf("persist: save mock mode: %v", err)
 	}
 
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	defer stop()
+
 	appLogDb, err := infraStorage.Open(cfg.AppLogs.Path)
 	if err != nil {
-		log.Fatalf("app logs: %v", err)
+		return fmt.Errorf("open app log database %s: %w", cfg.AppLogs.Path, err)
 	}
 	appLogRepo := infraLog.NewAppLogRepository(appLogDb)
 	appLog := appLogService.NewService(appLogRepo)
 	appLog.ConfigLoaded(ctx)
 	appLog.ServiceStarted(ctx)
-	defer stop()
 
 	localCIDRs, err := appNetwork.LocalCIDRs(cfg.Network.CIDRs, networkInterface)
 	if err != nil {
@@ -73,7 +86,7 @@ func main() {
 	}
 
 	var runtime *packetapp.Runtime
-	if *mockMode {
+	if mockMode {
 		log.Println("main: starting in mock mode")
 		manager := mock.NewManager(localCIDRs)
 		lists.RestorePersistentLists(manager, store, appLog)
@@ -94,7 +107,7 @@ func main() {
 		packetApp := packetapp.NewPacketApp(loader)
 		runtime, err = packetApp.Start(ctx, "tc_filter.bpf.o", networkInterface, localCIDRs)
 		if err != nil {
-			log.Fatalf("main: start packet app: %v", err)
+			return fmt.Errorf("start packet app on %s: %w", networkInterface, err)
 		}
 		lists.RestorePersistentLists(runtime.Lists, store, appLog)
 		runtime.Lists = lists.NewLoggedListManager(lists.NewPersistentListManager(runtime.Lists, store, appLog), appLog)
@@ -107,7 +120,7 @@ func main() {
 	metricsService.Start(ctx)
 	analyticsDb, err := infraStorage.OpenAnalytics(cfg.Analytics.Path)
 	if err != nil {
-		log.Fatalf("analytics: %v", err)
+		return fmt.Errorf("open analytics database %s: %w", cfg.Analytics.Path, err)
 	}
 	analyticsRepo := infraLog.NewAnalyticsRepository(analyticsDb)
 	analyticsService := appAnalytics.NewService(analyticsRepo, localCIDRs)
@@ -138,22 +151,31 @@ func main() {
 	)
 	dispatcher.Start(ctx)
 
-	server := infrahttp.NewServer(cfg.ServerAddr(), "./dist", networkInterface, leaseFile, runtime.Lists, sse, metricsService, systemService, *mockMode, appLog, appLog, inspectionService, analyticsService, reportService)
+	server := infrahttp.NewServer(cfg.ServerAddr(), "./dist", networkInterface, leaseFile, runtime.Lists, sse, metricsService, systemService, mockMode, appLog, appLog, inspectionService, analyticsService, reportService)
 
+	// Buffered so the goroutine can always exit, even if nobody reads.
+	serverErr := make(chan error, 1)
 	go func() {
-
 		log.Printf("main: listening on %s", server.Addr)
 
-		if err := server.ListenAndServe(); err != nil {
-			log.Fatalf("main: http server: %v", err)
+		// Shutdown makes ListenAndServe return ErrServerClosed. That is the
+		// expected end of a clean stop, not a failure.
+		if err := server.ListenAndServe(); err != nil && !errors.Is(err, http.ErrServerClosed) {
+			serverErr <- err
 		}
 	}()
-	<-ctx.Done()
+
+	select {
+	case err := <-serverErr:
+		return fmt.Errorf("http server: %w", err)
+	case <-ctx.Done():
+	}
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
 
 	if err := server.Shutdown(shutdownCtx); err != nil {
-		log.Printf("main: shutdown server: %v", err)
+		return fmt.Errorf("shutdown server: %w", err)
 	}
+	return nil
 }
