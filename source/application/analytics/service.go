@@ -48,13 +48,26 @@ func (s *Service) Start(ctx context.Context) {
 		for {
 			select {
 			case <-ctx.Done():
-				s.flush()
+				// Deliberately no flush here. This goroutine cannot be waited
+				// on, so flushing would drain the buffer into a transaction
+				// that the process may exit before committing -- and it would
+				// leave Close with nothing left to write. Close owns the final
+				// flush, synchronously.
 				return
 			case <-ticker.C:
 				s.flush()
 			}
 		}
 	}()
+}
+
+// Close writes out whatever is still buffered. Start's goroutine also flushes
+// when its context is cancelled, but that happens concurrently with shutdown
+// and cannot be waited on, so the caller needs a synchronous way to drain the
+// buffer before the database goes away. Flushing twice is harmless: the second
+// drain finds nothing pending.
+func (s *Service) Close() {
+	s.flush()
 }
 
 func (s *Service) Consume(p packet.Packet) {

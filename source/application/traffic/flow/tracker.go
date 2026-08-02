@@ -89,8 +89,8 @@ func (t *Tracker) Flush() {
 
 	t.mu.Lock()
 	for key, rec := range t.table {
-		idle      := now.Sub(rec.LastSeen) > idleTimeout
-		long      := now.Sub(rec.FirstSeen) > flushTimeout
+		idle := now.Sub(rec.LastSeen) > idleTimeout
+		long := now.Sub(rec.FirstSeen) > flushTimeout
 		tcpClosed := key.Proto == 6 && rec.TCPFlags&0x05 != 0 // FIN(0x01) | RST(0x04)
 
 		if idle || long || tcpClosed {

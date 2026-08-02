@@ -8,7 +8,7 @@ import (
 )
 
 type EbpfLoader interface {
-	NewIpFilter() lists.IpFilter
+	NewIPFilter() lists.IPFilter
 	NewCIDRFilter() core.CIDRFilter
 
 	LoadCollection(objPath string) error

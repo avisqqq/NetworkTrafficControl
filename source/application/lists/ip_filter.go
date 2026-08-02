@@ -2,7 +2,7 @@ package lists
 
 import "ntc/source/domain/packet"
 
-type IpFilter interface {
+type IPFilter interface {
 	AddToWhitelist(entry packet.IPKey) error
 	DeleteFromWhitelist(entry packet.IPKey) error
 	AddToBlacklist(entry packet.IPKey) error

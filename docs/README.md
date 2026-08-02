@@ -9,3 +9,4 @@ This folder contains project documentation split by topic.
 - [Database Schema](database-schema.md): SQLite databases, tables, columns, counters, and relationships.
 - [HTTP API](api.md): current HTTP and SSE endpoints.
 - [Deployment](deployment.md): local development, Raspberry Pi deployment, systemd, and monitoring.
+- [Decision Records](adr/README.md): why the load-bearing decisions were made, and what they cost.

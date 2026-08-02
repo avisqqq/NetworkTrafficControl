@@ -59,12 +59,23 @@ func (s *SSE) Handler(w http.ResponseWriter, r *http.Request) {
 		case <-r.Context().Done():
 			return
 		case b := <-ch:
-			w.Write([]byte("data: "))
-			w.Write(b)
-			w.Write([]byte("\n\n"))
+			// One write per frame: a partial frame is not valid SSE, and it
+			// gives the loop a single place to notice the client is gone.
+			frame := make([]byte, 0, len("data: ")+len(b)+2)
+			frame = append(frame, "data: "...)
+			frame = append(frame, b...)
+			frame = append(frame, '\n', '\n')
+			if _, err := w.Write(frame); err != nil {
+				// Nothing can be reported over a dead connection. Returning
+				// drops the subscription now instead of writing into a broken
+				// socket until the request context fires.
+				return
+			}
 			flusher.Flush()
 		case <-ticker.C:
-			w.Write([]byte(": ping\n\n"))
+			if _, err := w.Write([]byte(": ping\n\n")); err != nil {
+				return
+			}
 			flusher.Flush()
 		}
 	}

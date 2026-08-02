@@ -5,10 +5,10 @@ import (
 )
 
 type ListService struct {
-	filter     IpFilter
+	filter     IPFilter
 	cidrFilter coreNetwork.CIDRFilter
 }
 
-func NewListService(f IpFilter, cidrFilter coreNetwork.CIDRFilter) *ListService {
+func NewListService(f IPFilter, cidrFilter coreNetwork.CIDRFilter) *ListService {
 	return &ListService{filter: f, cidrFilter: cidrFilter}
 }

@@ -32,7 +32,7 @@ func (l *PacketApp) Start(ctx context.Context, objPath, iface string, localCIDRs
 		return nil, err
 	}
 
-	ipFilter := l.loader.NewIpFilter()
+	ipFilter := l.loader.NewIPFilter()
 	mapFilter := l.loader.NewCIDRFilter()
 	if _, err := appNetwork.NewService(mapFilter).LoadDefaultLocalNets(localCIDRs, iface); err != nil {
 		return nil, err
