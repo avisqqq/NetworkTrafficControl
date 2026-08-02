@@ -3,8 +3,8 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
-	"ntc/source/infrastructure/http/dto"
 	"ntc/source/domain/packet"
+	"ntc/source/infrastructure/http/dto"
 )
 
 func IpHandler(

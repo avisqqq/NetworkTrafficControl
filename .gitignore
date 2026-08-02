@@ -5,5 +5,7 @@ dist/
 web/node_modules/
 execute/
 *.bpf.o
+/ntc
+/ntc_bin
 .idea/
 .gocache/

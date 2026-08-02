@@ -28,10 +28,10 @@ func CidrHandler(
 				return
 			}
 			json.NewEncoder(w).Encode(dto.CidrResponse{
-				OK:      true,
-				CIDR:    key.ToString(),
+				OK:        true,
+				CIDR:      key.ToString(),
 				PrefixLen: key.PrefixLen,
-				Version: key.Version,
+				Version:   key.Version,
 			})
 
 		case http.MethodDelete:
@@ -46,10 +46,10 @@ func CidrHandler(
 				return
 			}
 			json.NewEncoder(w).Encode(dto.CidrResponse{
-				OK:      true,
-				CIDR:    key.ToString(),
+				OK:        true,
+				CIDR:      key.ToString(),
 				PrefixLen: key.PrefixLen,
-				Version: key.Version,
+				Version:   key.Version,
 			})
 
 		case http.MethodGet:

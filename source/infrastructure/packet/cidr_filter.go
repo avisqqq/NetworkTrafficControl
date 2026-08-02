@@ -1,8 +1,8 @@
- package packet
+package packet
 
 import (
-	"ntc/source/domain/packet"
 	"ntc/source/domain/network"
+	"ntc/source/domain/packet"
 )
 
 type CIDRFilter struct {

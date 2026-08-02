@@ -122,7 +122,7 @@ func TestIpFilter_DeleteFromBlacklist_RemovesEntry(t *testing.T) {
 
 	e := ipv4("1.1.1.1")
 	bl := &mockMap{entries: []packet.IPKey{e}}
-	f := infraebpf.NewIpFilter(&mockMap{},&mockMap{}, bl)
+	f := infraebpf.NewIpFilter(&mockMap{}, &mockMap{}, bl)
 
 	require.NoError(t, f.DeleteFromBlacklist(e))
 
@@ -133,7 +133,7 @@ func TestIpFilter_DeleteFromBlacklist_PropagatesError(t *testing.T) {
 	t.Parallel()
 
 	bl := &mockMap{delErr: errors.New("map error")}
-	f := infraebpf.NewIpFilter(&mockMap{},&mockMap{}, bl)
+	f := infraebpf.NewIpFilter(&mockMap{}, &mockMap{}, bl)
 
 	err := f.DeleteFromBlacklist(ipv4("1.1.1.1"))
 

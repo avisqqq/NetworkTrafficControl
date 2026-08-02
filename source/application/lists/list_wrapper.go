@@ -1,9 +1,10 @@
 package lists
 
 import (
-	"ntc/source/domain/packet"
 	"ntc/source/domain/network"
+	"ntc/source/domain/packet"
 )
+
 func (m *ListService) AddToOnlyLocalByString(ip string) (packet.IPKey, error) {
 	key, err := packet.IPKeyFromString(ip)
 	if err != nil {
@@ -81,8 +82,8 @@ func (m *ListService) AddToLocalNetsV6(ip string) (network.CIDR, error) {
 	}
 	return key, m.cidrFilter.AddLocalCIDRV6(key)
 }
-	
-func (m *ListService) RemoveFromLocalNetsV6(ip string) (network.CIDR, error){
+
+func (m *ListService) RemoveFromLocalNetsV6(ip string) (network.CIDR, error) {
 	key, err := (network.CIDRFromString(ip))
 	if err != nil {
 		return network.CIDR{}, err
@@ -104,8 +105,8 @@ func (m *ListService) AddToLocalNetsV4(ip string) (network.CIDR, error) {
 	}
 	return key, m.cidrFilter.AddLocalCIDRV4(key)
 }
-	
-func (m *ListService) RemoveFromLocalNetsV4(ip string) (network.CIDR, error){
+
+func (m *ListService) RemoveFromLocalNetsV4(ip string) (network.CIDR, error) {
 	key, err := (network.CIDRFromString(ip))
 	if err != nil {
 		return network.CIDR{}, err
@@ -120,4 +121,3 @@ func (m *ListService) GetFromLocalNetsV4() ([]network.CIDREntry, error) {
 	}
 	return network.CIDRsToEntriesByVersion(key, 4), nil
 }
-
