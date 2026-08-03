@@ -33,3 +33,4 @@ supersedes it, and the old one gets `Status: Superseded by NNNN`.
 - [0002](0002-two-sqlite-databases-of-counters.md): Two SQLite databases, storing counters rather than packets
 - [0003](0003-ssh-bypass-precedes-the-blacklist.md): SSH traffic bypasses the blacklist
 - [0004](0004-nftables-enforces-ebpf-and-nflog-observe.md): nftables enforces, eBPF and NFLOG observe
+- [0005](0005-events-and-webhooks.md): Zdarzenia i webhooki zamiast systemu alertów
