@@ -69,7 +69,7 @@ NTC supports these list types:
 | Local CIDRs v4 | `/network/localnets/v4` | Local IPv4 networks |
 | Local CIDRs v6 | `/network/localnets/v6` | Local IPv6 networks |
 
-Lists are persisted to `persistence.path`, currently `./data/lists.json` by default.
+Policy IP lists are persisted to `persistence.path`, currently `./data/lists.json` by default. Local CIDRs flow in the other direction: NTC derives them from configuration or the network interface, loads them into the runtime, and exports that runtime state to JSON. Persisted CIDRs are not restored into the runtime.
 
 ## Packet Actions
 

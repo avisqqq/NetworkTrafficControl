@@ -105,9 +105,10 @@ NTC uses three local persistence mechanisms:
 
 | Storage | Default path | Purpose |
 |---|---|---|
-| JSON | `./data/lists.json` | IP lists and mock mode |
+| JSON | `./data/lists.json` | IP lists, mock mode, and the system-derived local CIDR snapshot |
 | SQLite | `./data/app_logs.db` | App logs |
 | SQLite | `./data/analytics.db` | Aggregated traffic analytics |
 
 SQLite schema details are in [Database Schema](database-schema.md).
 
+At startup, local CIDRs are derived from `network.cidrs` or the configured interface and loaded into the runtime first. The persistence decorator then reads those CIDRs back from runtime memory and writes them to JSON. JSON CIDRs are output for consumers such as firewall integration; they are not a configuration source for NTC.
