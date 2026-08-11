@@ -40,7 +40,7 @@ func CIDRsToEntries(cidrs []CIDR) []CIDREntry {
 	return entries
 }
 func CIDRFromString(raw string) (CIDR, error) {
-	ip, ipNet, err := net.ParseCIDR(raw)
+	_, ipNet, err := net.ParseCIDR(raw)
 	if err != nil {
 		return CIDR{}, fmt.Errorf("invalid CIDR: %w", err)
 	}
@@ -50,12 +50,12 @@ func CIDRFromString(raw string) (CIDR, error) {
 
 	c.PrefixLen = uint32(ones)
 
-	if v4 := ip.To4(); v4 != nil {
+	if v4 := ipNet.IP.To4(); v4 != nil {
 		c.Version = 4
 		copy(c.IP[:4], v4)
 		return c, nil
 	}
-	v6 := ip.To16()
+	v6 := ipNet.IP.To16()
 	if v6 == nil {
 		return CIDR{}, fmt.Errorf("invalid IP address in CIDR")
 	}
@@ -70,7 +70,6 @@ func (c CIDR) ToEntry() CIDREntry {
 		Version:   c.Version,
 	}
 }
-
 func (c CIDR) ToString() string {
 	switch c.Version {
 	case 4:
