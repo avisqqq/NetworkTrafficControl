@@ -96,7 +96,7 @@ func run(configPath string, mockMode bool) error {
 	if mockMode {
 		log.Println("main: starting in mock mode")
 		manager := mock.NewManager(localCIDRs)
-		lists.RestorePersistentLists(manager, store, appLog)
+		lists.RestorePersistentIPLists(manager, store, appLog)
 		runtime = &packetapp.Runtime{
 			Reader: mock.NewReader(ctx, manager),
 			Lists:  lists.NewLoggedListManager(lists.NewPersistentListManager(manager, store, appLog), appLog),
@@ -116,7 +116,7 @@ func run(configPath string, mockMode bool) error {
 		if err != nil {
 			return fmt.Errorf("start packet app on %s: %w", networkInterface, err)
 		}
-		lists.RestorePersistentLists(runtime.Lists, store, appLog)
+		lists.RestorePersistentIPLists(runtime.Lists, store, appLog)
 		runtime.Lists = lists.NewLoggedListManager(lists.NewPersistentListManager(runtime.Lists, store, appLog), appLog)
 	}
 

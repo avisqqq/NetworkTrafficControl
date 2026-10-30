@@ -8,7 +8,7 @@ The program can also run in mock mode for local development without eBPF or Rasp
 
 - TC eBPF packet visibility for ingress and egress traffic.
 - Packet actions for normal pass, blacklist drop, whitelist skip, SSH bypass, and only-local drop.
-- Blacklist, whitelist, and only-local IP lists persisted to JSON.
+- Blacklist, whitelist, and only-local IP lists persisted to JSON, with a startup snapshot of system-derived local CIDRs.
 - Live packet event stream over Server-Sent Events.
 - Prometheus `/metrics` endpoint with traffic rates, protocol counters, direction counters, action counters, top talkers, and security indicators.
 - Flow and per-IP traffic tracking with a 60 second sliding window.
