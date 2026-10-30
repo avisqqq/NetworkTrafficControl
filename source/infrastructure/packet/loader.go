@@ -4,9 +4,10 @@ import (
 	"context"
 	"log"
 	"net"
-
+	"ntc/source/application/lists"
+	"ntc/source/application/packet"
+	"ntc/source/application/packetstream"
 	networkCore "ntc/source/domain/network/core"
-	domainCore "ntc/source/domain/packet/core"
 	policyCore "ntc/source/domain/policy/core"
 	"ntc/source/infrastructure/packet/maps"
 
@@ -23,16 +24,16 @@ type Loader struct {
 	packets          *ringbuf.Reader
 }
 
-func NewEbpfLoader() domainCore.EbpfLoader {
+func NewEbpfLoader() packet.EbpfLoader {
 	return &Loader{}
 }
 
-func (l *Loader) NewIpFilter() domainCore.IpFilter {
-	whitelistMap := maps.NewIpMap(l.collection, "whitelist")
-	blacklistMap := maps.NewIpMap(l.collection, "blacklist")
-	onlylocalMap := maps.NewIpMap(l.collection, "onlylocal")
+func (l *Loader) NewIPFilter() lists.IPFilter {
+	whitelistMap := maps.NewIPMap(l.collection, "whitelist")
+	blacklistMap := maps.NewIPMap(l.collection, "blacklist")
+	onlylocalMap := maps.NewIPMap(l.collection, "onlylocal")
 
-	return NewIpFilter(onlylocalMap, whitelistMap, blacklistMap)
+	return NewIPFilter(onlylocalMap, whitelistMap, blacklistMap)
 }
 
 func (l *Loader) NewCIDRFilter() networkCore.CIDRFilter {
@@ -48,7 +49,7 @@ func (l *Loader) NewPolicyFilter() policyCore.PolicyFilter {
 	return NewPolicyFilter(policy)
 }
 
-func (l *Loader) NewReader(ctx context.Context) (domainCore.Reader, error) {
+func (l *Loader) NewReader(ctx context.Context) (packetstream.Reader, error) {
 	reader, err := ringbuf.NewReader(l.collection.Maps["events"])
 	if err != nil {
 		log.Fatalf("ebpf/loader:NewReader -> failed to create ring buffer reader: %v", err)

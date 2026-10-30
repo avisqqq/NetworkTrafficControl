@@ -25,22 +25,30 @@ func SystemEventsHandler(system SystemSnapshotProvider) http.HandlerFunc {
 			return
 		}
 
-		send := func() {
+		// Reports whether the stream is still alive: a failed write means the
+		// client is gone, and there is no way to report that over the same
+		// connection. A snapshot or encoding error only skips one tick.
+		send := func() bool {
 			snapshot, err := system.Snapshot()
 			if err != nil {
-				return
+				return true
 			}
 
 			b, err := json.Marshal(snapshot)
 			if err != nil {
-				return
+				return true
 			}
 
-			fmt.Fprintf(w, "data: %s\n\n", b)
+			if _, err := fmt.Fprintf(w, "data: %s\n\n", b); err != nil {
+				return false
+			}
 			flusher.Flush()
+			return true
 		}
 
-		send()
+		if !send() {
+			return
+		}
 
 		ticker := time.NewTicker(time.Second)
 		defer ticker.Stop()
@@ -50,7 +58,9 @@ func SystemEventsHandler(system SystemSnapshotProvider) http.HandlerFunc {
 			case <-r.Context().Done():
 				return
 			case <-ticker.C:
-				send()
+				if !send() {
+					return
+				}
 			}
 		}
 	}

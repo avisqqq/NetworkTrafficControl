@@ -14,6 +14,6 @@ type Match struct {
 type Rule interface {
 	ID() string
 	Type() string
-	Severity() alert.Saverity
+	Severity() alert.Severity
 	Evaluate(packet.Packet) (Match, bool)
 }

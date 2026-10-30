@@ -24,15 +24,15 @@ func (s *Service) Consume(packet packet.Packet) {
 func (s *Service) Start(ctx context.Context) {
 	ticker := time.NewTicker(5 * time.Second)
 
-	go func(){
+	go func() {
 		defer ticker.Stop()
 
-		for{
-			select{
-				case <-ctx.Done():
-					return
-				case <-ticker.C:
-					s.tracker.Flush()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				s.tracker.Flush()
 			}
 		}
 	}()

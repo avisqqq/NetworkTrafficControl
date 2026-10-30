@@ -86,7 +86,7 @@ func (p *IPAPIProvider) Lookup(ctx context.Context, ip string) (inspection.GeoIn
 	if err != nil {
 		return inspection.GeoInfo{}, err
 	}
-	defer res.Body.Close()
+	defer func() { _ = res.Body.Close() }()
 
 	if res.StatusCode != http.StatusOK {
 		return inspection.GeoInfo{}, fmt.Errorf("geo provider returned %s", res.Status)

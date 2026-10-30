@@ -1,4 +1,4 @@
-package stats 
+package stats
 
 import (
 	"context"
@@ -11,38 +11,37 @@ type ActiveFlowsProvider interface {
 	ActiveCount() int
 }
 
-type Service struct{
+type Service struct {
 	tracker *IPTracker
-	flows ActiveFlowsProvider
+	flows   ActiveFlowsProvider
 }
 
 func NewService(flows ActiveFlowsProvider) *Service {
 	return &Service{
 		tracker: NewIPTracker(),
-		flows: flows,
+		flows:   flows,
 	}
 }
 
 func (s *Service) Consume(p packet.Packet) {
-	src:= packet.IPKey{
+	src := packet.IPKey{
 		Version: p.IPVersion,
 		Address: p.Src,
 	}
 	s.tracker.Update(src.ToString(), p)
 }
 
-
 func (s *Service) Start(ctx context.Context) {
 	ticker := time.NewTicker(2 * time.Second)
-	go func(){
+	go func() {
 		defer ticker.Stop()
-		
-		for{
-			select{
-				case <-ctx.Done():
-					return
-				case <-ticker.C:
-					s.tracker.Evict()
+
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+				s.tracker.Evict()
 			}
 		}
 	}()

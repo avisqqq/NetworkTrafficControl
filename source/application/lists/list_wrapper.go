@@ -27,7 +27,7 @@ func (m *ListService) GetFromOnlyLocalByString() ([]packet.IPEntry, error) {
 	if err != nil {
 		return []packet.IPEntry{}, err
 	}
-	return packet.IpKeysToIpEntries(key)
+	return packet.IPKeysToIPEntries(key)
 }
 
 func (m *ListService) AddToBlackListByString(ip string) (packet.IPKey, error) {
@@ -51,7 +51,7 @@ func (m *ListService) GetFromBlackListByString() ([]packet.IPEntry, error) {
 	if err != nil {
 		return []packet.IPEntry{}, err
 	}
-	return packet.IpKeysToIpEntries(key)
+	return packet.IPKeysToIPEntries(key)
 }
 
 func (m *ListService) AddToWhiteListByString(ip string) (packet.IPKey, error) {
@@ -75,7 +75,7 @@ func (m *ListService) GetFromWhiteListByString() ([]packet.IPEntry, error) {
 	if err != nil {
 		return []packet.IPEntry{}, err
 	}
-	return packet.IpKeysToIpEntries(key)
+	return packet.IPKeysToIPEntries(key)
 }
 
 func (m *ListService) AddToLocalNetsV6(ip string) (network.CIDR, error) {

@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	"ntc/source/domain/network"
-	"ntc/source/domain/packet/core"
+	"ntc/source/domain/packet"
 
 	"github.com/cilium/ebpf"
 )
@@ -25,7 +25,7 @@ type CIDRMap struct {
 	version uint8
 }
 
-func NewCIDRMap(collation *ebpf.Collection, name string, version uint8) core.Map[network.CIDR] {
+func NewCIDRMap(collation *ebpf.Collection, name string, version uint8) packet.Map[network.CIDR] {
 	eBPFmap := collation.Maps[name]
 	return &CIDRMap{ebpfMap: eBPFmap, name: name, version: version}
 }
@@ -127,4 +127,3 @@ func (m *CIDRMap) Get() ([]network.CIDR, error) {
 func (m *CIDRMap) Close() error {
 	return m.ebpfMap.Close()
 }
-

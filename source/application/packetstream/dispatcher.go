@@ -2,15 +2,14 @@ package packetstream
 
 import (
 	"context"
-	"ntc/source/domain/packet/core"
 )
 
 type Dispatcher struct {
-	reader    core.Reader
+	reader    Reader
 	consumers []Consumer
 }
 
-func NewDispatcher(reader core.Reader, consumers ...Consumer) *Dispatcher {
+func NewDispatcher(reader Reader, consumers ...Consumer) *Dispatcher {
 	return &Dispatcher{
 		reader:    reader,
 		consumers: consumers,
@@ -19,7 +18,7 @@ func NewDispatcher(reader core.Reader, consumers ...Consumer) *Dispatcher {
 
 func (d *Dispatcher) Start(ctx context.Context) {
 	packets := d.reader.ReadPackets()
-	go func(){
+	go func() {
 		for {
 			select {
 			case <-ctx.Done():

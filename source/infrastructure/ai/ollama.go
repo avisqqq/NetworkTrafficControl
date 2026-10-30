@@ -62,7 +62,7 @@ func (c *OllamaClient) Generate(ctx context.Context, prompt reports.Prompt) (jso
 	if err != nil {
 		return nil, err
 	}
-	defer resp.Body.Close()
+	defer func() { _ = resp.Body.Close() }()
 
 	data, err := io.ReadAll(io.LimitReader(resp.Body, 2<<20))
 	if err != nil {

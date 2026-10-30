@@ -16,9 +16,9 @@ func NewServer(addr, webDir, iface, leaseFile string, mgr lists.ListManager, sse
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("/events", sse.Handler)
-	mux.HandleFunc("/blacklist", handlers.IpHandler(mgr.AddToBlackListByString, mgr.RemoveFromBlackListByString, mgr.GetFromBlackListByString))
-	mux.HandleFunc("/whitelist", handlers.IpHandler(mgr.AddToWhiteListByString, mgr.RemoveFromWhiteListByString, mgr.GetFromWhiteListByString))
-	mux.HandleFunc("/onlylocal", handlers.IpHandler(mgr.AddToOnlyLocalByString, mgr.RemoveFromOnlyLocalByString, mgr.GetFromOnlyLocalByString))
+	mux.HandleFunc("/blacklist", handlers.IPHandler(mgr.AddToBlackListByString, mgr.RemoveFromBlackListByString, mgr.GetFromBlackListByString))
+	mux.HandleFunc("/whitelist", handlers.IPHandler(mgr.AddToWhiteListByString, mgr.RemoveFromWhiteListByString, mgr.GetFromWhiteListByString))
+	mux.HandleFunc("/onlylocal", handlers.IPHandler(mgr.AddToOnlyLocalByString, mgr.RemoveFromOnlyLocalByString, mgr.GetFromOnlyLocalByString))
 
 	mux.HandleFunc("/runtime/state", handlers.RuntimeStateHandler(mockMode))
 	mux.HandleFunc("/network/devices", handlers.HostnameHandler(iface, leaseFile, mockMode, analytics))

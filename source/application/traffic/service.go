@@ -2,13 +2,13 @@ package traffic
 
 import (
 	"context"
-	"ntc/source/domain/packet"
 	"ntc/source/application/traffic/flow"
 	"ntc/source/application/traffic/stats"
+	"ntc/source/domain/packet"
 )
 
 type Service struct {
-	flow *flow.Service
+	flow  *flow.Service
 	stats *stats.Service
 }
 

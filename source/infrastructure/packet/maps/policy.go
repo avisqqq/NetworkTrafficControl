@@ -3,7 +3,7 @@ package maps
 import (
 	"fmt"
 
-	"ntc/source/domain/packet/core"
+	"ntc/source/domain/packet"
 	"ntc/source/domain/policy"
 
 	"github.com/cilium/ebpf"
@@ -14,7 +14,7 @@ type IPPortMap struct {
 	name    string
 }
 
-func NewIPPortMap(collation *ebpf.Collection, name string) core.Map[policy.IpPortRuleKey] {
+func NewIPPortMap(collation *ebpf.Collection, name string) packet.Map[policy.IpPortRuleKey] {
 	eBPFmap := collation.Maps[name]
 	return &IPPortMap{ebpfMap: eBPFmap, name: name}
 }

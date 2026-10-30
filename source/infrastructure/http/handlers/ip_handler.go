@@ -3,52 +3,49 @@ package handlers
 import (
 	"encoding/json"
 	"net/http"
-
-	"ntc/source/domain/network"
+	"ntc/source/domain/packet"
 	"ntc/source/infrastructure/http/dto"
 )
 
-func CidrHandler(
-	add func(string) (network.CIDR, error),
-	remove func(string) (network.CIDR, error),
-	getAll func() ([]network.CIDREntry, error),
+func IPHandler(
+	add func(string) (packet.IPKey, error),
+	remove func(string) (packet.IPKey, error),
+	getAll func() ([]packet.IPEntry, error),
 ) http.HandlerFunc {
 	return func(w http.ResponseWriter, r *http.Request) {
 		switch r.Method {
 
 		case http.MethodPost:
-			var req dto.CidrRequest
+			var req dto.IPRequest
 			if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 				http.Error(w, "bad json", 400)
 				return
 			}
-			key, err := add(req.CIDR)
+			key, err := add(req.IP)
 			if err != nil {
 				http.Error(w, err.Error(), 400)
 				return
 			}
-			json.NewEncoder(w).Encode(dto.CidrResponse{
+			_ = json.NewEncoder(w).Encode(dto.IPResponse{
 				OK:      true,
-				CIDR:    key.ToString(),
-				PrefixLen: key.PrefixLen,
+				IP:      key.ToString(),
 				Version: key.Version,
 			})
 
 		case http.MethodDelete:
-			cidr := r.URL.Query().Get("cidr")
-			if cidr == "" {
-				http.Error(w, "missing cidr", 400)
+			ip := r.URL.Query().Get("ip")
+			if ip == "" {
+				http.Error(w, "missing ip", 400)
 				return
 			}
-			key, err := remove(cidr)
+			key, err := remove(ip)
 			if err != nil {
 				http.Error(w, err.Error(), 400)
 				return
 			}
-			json.NewEncoder(w).Encode(dto.CidrResponse{
+			_ = json.NewEncoder(w).Encode(dto.IPResponse{
 				OK:      true,
-				CIDR:    key.ToString(),
-				PrefixLen: key.PrefixLen,
+				IP:      key.ToString(),
 				Version: key.Version,
 			})
 
@@ -58,10 +55,10 @@ func CidrHandler(
 				http.Error(w, err.Error(), 500)
 				return
 			}
-			json.NewEncoder(w).Encode(list)
+			_ = json.NewEncoder(w).Encode(list)
 
 		default:
-			http.Error(w, "method not allowed", 405)
+			http.Error(w, "method not allowed", http.StatusMethodNotAllowed)
 		}
 	}
 }

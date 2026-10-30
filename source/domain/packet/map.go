@@ -1,4 +1,4 @@
-package core
+package packet
 
 type Map[T any] interface {
 	Add(entry T) error

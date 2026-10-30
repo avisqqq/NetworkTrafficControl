@@ -45,7 +45,7 @@ func IPKeyFromString(ipStr string) (IPKey, error) {
 	return key, nil
 }
 
-func IpKeysToIpEntries(keys []IPKey) ([]IPEntry, error) {
+func IPKeysToIPEntries(keys []IPKey) ([]IPEntry, error) {
 	entries := make([]IPEntry, 0, len(keys))
 	for _, key := range keys {
 		entries = append(entries, IPEntry{

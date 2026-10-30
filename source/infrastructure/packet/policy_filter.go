@@ -1,15 +1,15 @@
 package packet
 
 import (
-	"ntc/source/domain/packet/core"
+	"ntc/source/domain/packet"
 	"ntc/source/domain/policy"
 )
 
 type PolicyFilter struct {
-	policy core.Map[policy.IpPortRuleKey]
+	policy packet.Map[policy.IpPortRuleKey]
 }
 
-func NewPolicyFilter(policyMap core.Map[policy.IpPortRuleKey]) *PolicyFilter {
+func NewPolicyFilter(policyMap packet.Map[policy.IpPortRuleKey]) *PolicyFilter {
 	return &PolicyFilter{
 		policy: policyMap,
 	}
