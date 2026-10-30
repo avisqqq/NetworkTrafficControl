@@ -36,8 +36,8 @@ func NewRule(ip packet.IPKey,
 	}, nil
 }
 
-func (r Rule) ToPolicyKey() IpPortRuleKey {
-	return IpPortRuleKey{
+func (r Rule) ToPolicyKey() IPPortRuleKey {
+	return IPPortRuleKey{
 		IP:        r.IP,
 		Pad:       0,
 		Port:      r.Port,

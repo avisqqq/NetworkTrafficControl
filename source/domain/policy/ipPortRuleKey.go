@@ -4,7 +4,7 @@ import (
 	"ntc/source/domain/packet"
 )
 
-type IpPortRuleKey struct {
+type IPPortRuleKey struct {
 	IP        packet.IPKey `json:"ip"`
 	Pad       uint8
 	Port      uint16 `json:"port"`
@@ -12,7 +12,7 @@ type IpPortRuleKey struct {
 	Direction uint8  `json:"direction"`
 }
 
-func (r IpPortRuleKey) ToRule() Rule {
+func (r IPPortRuleKey) ToRule() Rule {
 	return Rule{
 		IP:        r.IP,
 		Port:      r.Port,

@@ -14,12 +14,12 @@ type IPPortMap struct {
 	name    string
 }
 
-func NewIPPortMap(collation *ebpf.Collection, name string) packet.Map[policy.IpPortRuleKey] {
+func NewIPPortMap(collation *ebpf.Collection, name string) packet.Map[policy.IPPortRuleKey] {
 	eBPFmap := collation.Maps[name]
 	return &IPPortMap{ebpfMap: eBPFmap, name: name}
 }
 
-func (m *IPPortMap) Add(entry policy.IpPortRuleKey) error {
+func (m *IPPortMap) Add(entry policy.IPPortRuleKey) error {
 	val := uint8(1)
 	if err := m.ebpfMap.Update(entry, val, ebpf.UpdateAny); err != nil {
 		return fmt.Errorf("ItpMap.Add: failed to add IP to %s: %w", m.name, err)
@@ -28,7 +28,7 @@ func (m *IPPortMap) Add(entry policy.IpPortRuleKey) error {
 	return nil
 }
 
-func (m *IPPortMap) Delete(entry policy.IpPortRuleKey) error {
+func (m *IPPortMap) Delete(entry policy.IPPortRuleKey) error {
 	if err := m.ebpfMap.Delete(entry); err != nil {
 		return fmt.Errorf("ItpMap.Delete: failed to remove IP from %s: %w", m.name, err)
 	}
@@ -36,10 +36,10 @@ func (m *IPPortMap) Delete(entry policy.IpPortRuleKey) error {
 	return nil
 }
 
-func (m *IPPortMap) Get() ([]policy.IpPortRuleKey, error) {
-	var result []policy.IpPortRuleKey
+func (m *IPPortMap) Get() ([]policy.IPPortRuleKey, error) {
+	var result []policy.IPPortRuleKey
 	iteration := m.ebpfMap.Iterate()
-	var key policy.IpPortRuleKey
+	var key policy.IPPortRuleKey
 	var value uint8
 
 	for iteration.Next(&key, &value) {

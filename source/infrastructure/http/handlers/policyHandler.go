@@ -34,7 +34,7 @@ func PolicyHandler(
 			}
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusCreated)
-			json.NewEncoder(w).Encode(dto.PolicyResponse{
+			_ = json.NewEncoder(w).Encode(dto.PolicyResponse{
 				OK:        true,
 				IP:        key.IP.ToString(),
 				Version:   key.IP.Version,
@@ -59,7 +59,7 @@ func PolicyHandler(
 				return
 			}
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(policyResponse(key))
+			_ = json.NewEncoder(w).Encode(policyResponse(key))
 
 		case http.MethodGet:
 			rules, err := getAll()
@@ -72,7 +72,7 @@ func PolicyHandler(
 				responses = append(responses, policyResponse(rule))
 			}
 			w.Header().Set("Content-Type", "application/json")
-			json.NewEncoder(w).Encode(responses)
+			_ = json.NewEncoder(w).Encode(responses)
 
 		default:
 			w.Header().Set("Allow", "GET, POST, DELETE")
