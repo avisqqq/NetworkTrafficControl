@@ -303,15 +303,6 @@ static __always_inline int handle_ipv4(
     fill_ipv4_key(&src_key, src);
     fill_ipv4_key(&dst_key, dst);
 
-//check policy
-   if (packet_has_blocked_endpoint(&src_key, &dst_key, src_port, dst_port, ip->protocol, direction)){
-       inc_stat(STAT_DROP);
-
-       emit_event((const __u8 *)&src, (const __u8 *)&dst, 4, ip->protocol, ACT_PORT_DROP, direction, src_port, dst_port, pkt_size, tcp_flags);
-       
-       return TC_ACT_SHOT;
-   } 
-
 // Check for local net
     if (bpf_map_lookup_elem(&onlylocal, &src_key)){
         if(!dst_is_in_local_v4(dst)){
@@ -322,19 +313,27 @@ static __always_inline int handle_ipv4(
         }
     }
 
+// SSH BYPASS: must stay above every API-driven drop, see ADR 0003
+    if (ip->protocol == IPPROTO_TCP && (src_port == 22 || dst_port == 22)) {
+        emit_event((const __u8 *)&src, (const __u8 *)&dst, 4, ip->protocol,
+                   ACT_SSH_BYPASS, direction, src_port, dst_port, pkt_size, tcp_flags);
+        return TC_ACT_OK;
+    }
+
+// check policy. TEMPORARY: moves to nftables, see ADR 0004
+    if (packet_has_blocked_endpoint(&src_key, &dst_key, src_port, dst_port, ip->protocol, direction)){
+        inc_stat(STAT_DROP);
+        emit_event((const __u8 *)&src, (const __u8 *)&dst, 4, ip->protocol,
+                   ACT_PORT_DROP, direction, src_port, dst_port, pkt_size, tcp_flags);
+        return TC_ACT_SHOT;
+    }
+
     if (bpf_map_lookup_elem(&blacklist, &src_key) ||
         bpf_map_lookup_elem(&blacklist, &dst_key)) {
         inc_stat(STAT_DROP);
         emit_event((const __u8 *)&src, (const __u8 *)&dst, 4, ip->protocol,
                    ACT_DROP, direction, src_port, dst_port, pkt_size, tcp_flags);
         return TC_ACT_SHOT;
-    }
-
-// SSH BYPASS
-    if (ip->protocol == IPPROTO_TCP && (src_port == 22 || dst_port == 22)) {
-        emit_event((const __u8 *)&src, (const __u8 *)&dst, 4, ip->protocol,
-                   ACT_SSH_BYPASS, direction, src_port, dst_port, pkt_size, tcp_flags);
-        return TC_ACT_OK;
     }
 
     if (bpf_map_lookup_elem(&whitelist, &src_key) ||
@@ -382,16 +381,6 @@ static __always_inline int handle_ipv6(
     fill_ipv6_key(&src_key, &ipv6->saddr);
     fill_ipv6_key(&dst_key, &ipv6->daddr);
 
-//check policy
-if(packet_has_blocked_endpoint(&src_key, &dst_key,src_port, dst_port,ipv6->nexthdr,direction)){
-inc_stat(STAT_DROP);
-        emit_event((const __u8 *)&ipv6->saddr, (const __u8 *)&ipv6->daddr, 6, ipv6->nexthdr,
-                   ACT_PORT_DROP, direction, src_port, dst_port, pkt_size, tcp_flags);
-        return TC_ACT_SHOT;
-}
-
-
-
 //check local
 if (bpf_map_lookup_elem(&onlylocal, &src_key)){
         if(!dst_is_in_local_v6(&ipv6->daddr)){
@@ -402,6 +391,20 @@ if (bpf_map_lookup_elem(&onlylocal, &src_key)){
         }
     }
 
+// SSH bypass: must stay above every API-driven drop, see ADR 0003
+    if (ipv6->nexthdr == IPPROTO_TCP && (src_port == 22 || dst_port == 22)) {
+        emit_event((const __u8 *)&ipv6->saddr, (const __u8 *)&ipv6->daddr, 6, ipv6->nexthdr,
+                   ACT_SSH_BYPASS, direction, src_port, dst_port, pkt_size, tcp_flags);
+        return TC_ACT_OK;
+    }
+
+// check policy. TEMPORARY: moves to nftables, see ADR 0004
+    if (packet_has_blocked_endpoint(&src_key, &dst_key, src_port, dst_port, ipv6->nexthdr, direction)){
+        inc_stat(STAT_DROP);
+        emit_event((const __u8 *)&ipv6->saddr, (const __u8 *)&ipv6->daddr, 6, ipv6->nexthdr,
+                   ACT_PORT_DROP, direction, src_port, dst_port, pkt_size, tcp_flags);
+        return TC_ACT_SHOT;
+    }
 
     if (bpf_map_lookup_elem(&blacklist, &src_key) ||
         bpf_map_lookup_elem(&blacklist, &dst_key)) {
@@ -409,12 +412,6 @@ if (bpf_map_lookup_elem(&onlylocal, &src_key)){
         emit_event((const __u8 *)&ipv6->saddr, (const __u8 *)&ipv6->daddr, 6, ipv6->nexthdr,
                    ACT_DROP, direction, src_port, dst_port, pkt_size, tcp_flags);
         return TC_ACT_SHOT;
-    }
-// SSH bypass
-    if (ipv6->nexthdr == IPPROTO_TCP && (src_port == 22 || dst_port == 22)) {
-        emit_event((const __u8 *)&ipv6->saddr, (const __u8 *)&ipv6->daddr, 6, ipv6->nexthdr,
-                   ACT_SSH_BYPASS, direction, src_port, dst_port, pkt_size, tcp_flags);
-        return TC_ACT_OK;
     }
 
     if (bpf_map_lookup_elem(&whitelist, &src_key) ||

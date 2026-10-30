@@ -7,8 +7,8 @@ The program can also run in mock mode for local development without eBPF or Rasp
 ## Current Features
 
 - TC eBPF packet visibility for ingress and egress traffic.
-- Packet actions for normal pass, blacklist drop, whitelist skip, SSH bypass, and only-local drop.
-- Blacklist, whitelist, and only-local IP lists persisted to JSON, with a startup snapshot of system-derived local CIDRs.
+- Packet actions for normal pass, blacklist drop, whitelist skip, SSH bypass, only-local drop, and policy drop.
+- Blacklist, whitelist, only-local IP lists, and policy rules persisted to JSON, with a startup snapshot of system-derived local CIDRs.
 - Live packet event stream over Server-Sent Events.
 - Prometheus `/metrics` endpoint with traffic rates, protocol counters, direction counters, action counters, top talkers, and security indicators.
 - Flow and per-IP traffic tracking with a 60 second sliding window.
@@ -326,6 +326,7 @@ Important metrics:
 | `SKIP` | Packet matched whitelist and was passed |
 | `SSH` | TCP port 22 bypass |
 | `ONLY_LOCAL_DROP` | Packet blocked by only-local policy |
+| `PORT_DROP` | Packet matched a policy rule and was dropped |
 | `UNKNOWN` | Unrecognized action value |
 
 ## Operational Notes

@@ -2,6 +2,7 @@ package lists
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"sort"
 	"sync"
@@ -23,6 +24,15 @@ type ListSnapshot struct {
 	OnlyLocal   []string
 	LocalNetsV4 []string
 	LocalNetsV6 []string
+	Policies    []PolicyEntry
+}
+
+// PolicyEntry is a policy rule in the plain form used by ListSnapshot.
+type PolicyEntry struct {
+	IP        string
+	Port      uint16
+	Protocol  string
+	Direction string
 }
 
 // ListStore is implemented by a persistence adapter. The application layer
@@ -48,8 +58,9 @@ func NewPersistentListManager(next ListManager, store ListStore, logger StorageL
 	return manager
 }
 
-// RestorePersistentIPLists restores policy IPs only. Local CIDRs are derived
-// from system configuration and are intentionally never restored from JSON.
+// RestorePersistentIPLists restores policy IPs and policy rules only. Local
+// CIDRs are derived from system configuration and are intentionally never
+// restored from JSON.
 func RestorePersistentIPLists(next ListManager, store ListStore, logger StorageLogger) {
 	snapshot, err := store.LoadLists()
 	if err != nil {
@@ -76,6 +87,21 @@ func RestorePersistentIPLists(next ListManager, store ListStore, logger StorageL
 			logStorageError(logger, "restore onlylocal "+ip, err)
 		}
 	}
+	for _, entry := range snapshot.Policies {
+		if err := restorePolicy(next, entry); err != nil {
+			label := fmt.Sprintf("%s:%d/%s->%s", entry.IP, entry.Port, entry.Protocol, entry.Direction)
+			log.Printf("persist: restore policy %s: %v", label, err)
+			logStorageError(logger, "restore policy "+label, err)
+		}
+	}
+}
+
+func restorePolicy(next ListManager, entry PolicyEntry) error {
+	rule, err := policy.RuleFromStrings(entry.IP, entry.Port, entry.Protocol, entry.Direction)
+	if err != nil {
+		return err
+	}
+	return next.AddPolicy(rule)
 }
 
 func (m *PersistentListManager) AddToBlackListByString(ip string) (packet.IPKey, error) {
@@ -201,11 +227,23 @@ func (m *PersistentListManager) GetFromLocalNetsV6() ([]network.CIDREntry, error
 // policy
 
 func (m *PersistentListManager) AddPolicy(rule policy.Rule) error {
-	return m.next.AddPolicy(rule)
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	err := m.next.AddPolicy(rule)
+	if err == nil {
+		m.save()
+	}
+	return err
 }
 
 func (m *PersistentListManager) RemovePolicy(rule policy.Rule) error {
-	return m.next.RemovePolicy(rule)
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	err := m.next.RemovePolicy(rule)
+	if err == nil {
+		m.save()
+	}
+	return err
 }
 
 func (m *PersistentListManager) GetPolicy() ([]policy.Rule, error) {
@@ -244,12 +282,19 @@ func (m *PersistentListManager) save() {
 		logStorageError(m.logger, "read LocalNetsV6", err)
 		return
 	}
+	policies, err := m.next.GetPolicy()
+	if err != nil {
+		log.Printf("persist: read policies: %v", err)
+		logStorageError(m.logger, "read policies", err)
+		return
+	}
 	snapshot := ListSnapshot{
 		Blacklist:   entriesToIPs(blacklist),
 		Whitelist:   entriesToIPs(whitelist),
 		OnlyLocal:   entriesToIPs(onlylocal),
 		LocalNetsV4: cidrsToStrings(localNetsV4),
 		LocalNetsV6: cidrsToStrings(localNetsV6),
+		Policies:    rulesToPolicyEntries(policies),
 	}
 	if err := m.store.SaveLists(snapshot); err != nil {
 		log.Printf("persist: save failed: %v", err)
@@ -280,4 +325,18 @@ func cidrsToStrings(cidrs []network.CIDREntry) []string {
 	}
 	sort.Strings(values)
 	return values
+}
+
+func rulesToPolicyEntries(rules []policy.Rule) []PolicyEntry {
+	sort.Slice(rules, func(i, j int) bool { return rules[i].ToString() < rules[j].ToString() })
+	entries := make([]PolicyEntry, 0, len(rules))
+	for _, rule := range rules {
+		entries = append(entries, PolicyEntry{
+			IP:        rule.IP.ToString(),
+			Port:      rule.Port,
+			Protocol:  rule.Protocol.String(),
+			Direction: rule.Direction.String(),
+		})
+	}
+	return entries
 }

@@ -26,12 +26,14 @@ order, for ingress and egress alike:
 
 1. `onlylocal` — source listed and destination outside the local nets: **drop**
 2. TCP with source or destination port 22: **pass**, tagged `ACT_SSH_BYPASS`
-3. `blacklist` hit on source or destination: **drop**
-4. `whitelist` hit: **pass**, tagged `ACT_SKIP`
-5. otherwise: **pass**
+3. `blocked_ip_ports` hit on source or destination: **drop**, tagged
+   `ACT_PORT_DROP`
+4. `blacklist` hit on source or destination: **drop**
+5. `whitelist` hit: **pass**, tagged `ACT_SKIP`
+6. otherwise: **pass**
 
-Step 2 sits above step 3 deliberately: SSH survives any blacklist entry. Step 1
-stays above step 2, so a host confined by `onlylocal` cannot use SSH to escape
+Step 2 sits above steps 3 and 4 deliberately: SSH survives any policy rule or
+blacklist entry. Step 1 stays above step 2, so a host confined by `onlylocal` cannot use SSH to escape
 its own confinement.
 
 ## Consequences

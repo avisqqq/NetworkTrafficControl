@@ -66,10 +66,11 @@ NTC supports these list types:
 | Blacklist | `/blacklist` | Drop matching traffic |
 | Whitelist | `/whitelist` | Allow/bypass matching traffic |
 | Only-local | `/onlylocal` | Restrict matching hosts to local traffic |
+| Policies | `/policies` | Drop traffic by IP, port, protocol, and direction |
 | Local CIDRs v4 | `/network/localnets/v4` | Local IPv4 networks |
 | Local CIDRs v6 | `/network/localnets/v6` | Local IPv6 networks |
 
-Policy IP lists are persisted to `persistence.path`, currently `./data/lists.json` by default. Local CIDRs flow in the other direction: NTC derives them from configuration or the network interface, loads them into the runtime, and exports that runtime state to JSON. Persisted CIDRs are not restored into the runtime.
+Policy IP lists and policy rules are persisted to `persistence.path`, currently `./data/lists.json` by default. Local CIDRs flow in the other direction: NTC derives them from configuration or the network interface, loads them into the runtime, and exports that runtime state to JSON. Persisted CIDRs are not restored into the runtime.
 
 ## Packet Actions
 
@@ -80,4 +81,5 @@ Policy IP lists are persisted to `persistence.path`, currently `./data/lists.jso
 | `SKIP` | Packet matched whitelist and was passed |
 | `SSH` | TCP port 22 bypass |
 | `ONLY_LOCAL_DROP` | Packet blocked by only-local policy |
+| `PORT_DROP` | Packet matched a policy rule and was dropped |
 | `UNKNOWN` | Unrecognized action value |

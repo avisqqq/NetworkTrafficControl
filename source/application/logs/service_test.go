@@ -23,6 +23,15 @@ func (r *repoStub) Get(ctx context.Context, filter Filter) ([]domain.AppLog, err
 	return r.logs, nil
 }
 
+func TestListEventForPolicy(t *testing.T) {
+	if got := listEvent("policy", "add"); got != domain.EventPolicyAdded {
+		t.Fatalf("add event = %s", got)
+	}
+	if got := listEvent("policy", "remove"); got != domain.EventPolicyRemoved {
+		t.Fatalf("remove event = %s", got)
+	}
+}
+
 func TestAIReportSucceededStoresResponseMetadata(t *testing.T) {
 	repo := &repoStub{}
 	service := NewService(repo)

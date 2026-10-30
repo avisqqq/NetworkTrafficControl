@@ -151,7 +151,7 @@ func (r *AnalyticsRepository) recordPacketTx(tx *gorm.DB, stat app.PacketStat, c
 	if err := upsertCountryCounter(tx, host.ID, peer, stat, countryCache); err != nil {
 		return err
 	}
-	if stat.Action == "DROP" || stat.Action == "ONLY_LOCAL_DROP" {
+	if stat.Action == "DROP" || stat.Action == "ONLY_LOCAL_DROP" || stat.Action == "PORT_DROP" {
 		if err := upsertBlockedCounter(tx, host.ID, peer.ID, service.ID, stat); err != nil {
 			return err
 		}

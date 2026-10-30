@@ -13,8 +13,8 @@ type IPMap struct {
 	name    string
 }
 
-func NewIPMap(collation *ebpf.Collection, name string) packet.Map[packet.IPKey] {
-	eBPFmap := collation.Maps[name]
+func NewIPMap(collection *ebpf.Collection, name string) packet.Map[packet.IPKey] {
+	eBPFmap := collection.Maps[name]
 	return &IPMap{ebpfMap: eBPFmap, name: name}
 }
 

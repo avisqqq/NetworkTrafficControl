@@ -25,8 +25,8 @@ type CIDRMap struct {
 	version uint8
 }
 
-func NewCIDRMap(collation *ebpf.Collection, name string, version uint8) packet.Map[network.CIDR] {
-	eBPFmap := collation.Maps[name]
+func NewCIDRMap(collection *ebpf.Collection, name string, version uint8) packet.Map[network.CIDR] {
+	eBPFmap := collection.Maps[name]
 	return &CIDRMap{ebpfMap: eBPFmap, name: name, version: version}
 }
 

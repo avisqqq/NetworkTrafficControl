@@ -20,7 +20,15 @@ type Data struct {
 	OnlyLocal   []string `json:"onlylocal"`
 	LocalNetsV4 []string `json:"local_nets_v4"`
 	LocalNetsV6 []string `json:"local_nets_v6"`
+	Policies    []Policy `json:"policies"`
 	MockMode    bool     `json:"mock_mode"`
+}
+
+type Policy struct {
+	IP        string `json:"ip"`
+	Port      uint16 `json:"port"`
+	Protocol  string `json:"protocol"`
+	Direction string `json:"direction"`
 }
 
 func New(path string) (*Store, error) {
@@ -63,6 +71,7 @@ func (s *Store) LoadLists() (lists.ListSnapshot, error) {
 		OnlyLocal:   d.OnlyLocal,
 		LocalNetsV4: d.LocalNetsV4,
 		LocalNetsV6: d.LocalNetsV6,
+		Policies:    toPolicyEntries(d.Policies),
 	}, nil
 }
 
@@ -73,6 +82,7 @@ func (s *Store) SaveLists(snapshot lists.ListSnapshot) error {
 		d.OnlyLocal = snapshot.OnlyLocal
 		d.LocalNetsV4 = snapshot.LocalNetsV4
 		d.LocalNetsV6 = snapshot.LocalNetsV6
+		d.Policies = fromPolicyEntries(snapshot.Policies)
 	})
 }
 
@@ -109,4 +119,20 @@ func (s *Store) update(change func(*Data)) error {
 	}
 	change(&d)
 	return s.save(d)
+}
+
+func toPolicyEntries(policies []Policy) []lists.PolicyEntry {
+	entries := make([]lists.PolicyEntry, 0, len(policies))
+	for _, p := range policies {
+		entries = append(entries, lists.PolicyEntry(p))
+	}
+	return entries
+}
+
+func fromPolicyEntries(entries []lists.PolicyEntry) []Policy {
+	policies := make([]Policy, 0, len(entries))
+	for _, entry := range entries {
+		policies = append(policies, Policy(entry))
+	}
+	return policies
 }

@@ -31,7 +31,7 @@ func (ForbiddenIPRule) Evaluate(p packet.Packet) (Match, bool) {
 	}
 	src, dst := p.PacketIpsToString()
 	return Match{
-		Value: "src: " + src + "or" + "dst: " + dst,
+		Value: "src: " + src + " or dst: " + dst,
 		Message: fmt.Sprintf(
 			"Traffic involving blacklisted ip was blocked: %s -> %s",
 			src,

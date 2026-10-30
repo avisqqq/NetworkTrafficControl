@@ -122,6 +122,35 @@ func TestAnalyticsRepositoryClassifiesLocalPeerCountryAndUnknownService(t *testi
 	}
 }
 
+func TestAnalyticsRepositoryCountsPortDropAsBlocked(t *testing.T) {
+	repo := NewAnalyticsRepository(testAnalyticsDB(t))
+
+	if err := repo.RecordPacket(app.PacketStat{
+		HostIP:    "192.168.1.10",
+		PeerIP:    "149.154.167.222",
+		HostScope: "PRIVATE",
+		PeerScope: "PUBLIC",
+		Proto:     "TCP",
+		Port:      443,
+		Service:   "HTTPS",
+		Direction: "EGRESS",
+		Action:    "PORT_DROP",
+		Packets:   1,
+		Bytes:     64,
+		SeenAt:    time.Date(2026, 6, 5, 12, 0, 0, 0, time.UTC),
+	}); err != nil {
+		t.Fatalf("record packet: %v", err)
+	}
+
+	summary, err := repo.Summary(100)
+	if err != nil {
+		t.Fatalf("summary: %v", err)
+	}
+	if summary.Totals.Blocked != 1 || len(summary.Blocked) != 1 {
+		t.Fatalf("expected one blocked peer, got total %d rows %+v", summary.Totals.Blocked, summary.Blocked)
+	}
+}
+
 func TestAnalyticsRepositoryMissingEnrichmentDoesNotLogRecordNotFound(t *testing.T) {
 	var logs bytes.Buffer
 	repo := NewAnalyticsRepository(testAnalyticsDBWithLogger(t, logger.New(log.New(&logs, "", 0), logger.Config{

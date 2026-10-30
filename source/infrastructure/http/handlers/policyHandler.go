@@ -2,9 +2,9 @@ package handlers
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 
-	"ntc/source/domain/packet"
 	"ntc/source/domain/policy"
 	"ntc/source/infrastructure/http/dto"
 )
@@ -29,19 +29,12 @@ func PolicyHandler(
 				return
 			}
 			if err := add(key); err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
+				http.Error(w, err.Error(), policyErrorStatus(err))
 				return
 			}
 			w.Header().Set("Content-Type", "application/json")
 			w.WriteHeader(http.StatusCreated)
-			_ = json.NewEncoder(w).Encode(dto.PolicyResponse{
-				OK:        true,
-				IP:        key.IP.ToString(),
-				Version:   key.IP.Version,
-				Port:      req.Port,
-				Protocol:  req.Protocol,
-				Direction: req.Direction,
-			})
+			_ = json.NewEncoder(w).Encode(policyResponse(key))
 
 		case http.MethodDelete:
 			var req dto.PolicyRequest
@@ -55,7 +48,7 @@ func PolicyHandler(
 				return
 			}
 			if err := remove(key); err != nil {
-				http.Error(w, err.Error(), http.StatusInternalServerError)
+				http.Error(w, err.Error(), policyErrorStatus(err))
 				return
 			}
 			w.Header().Set("Content-Type", "application/json")
@@ -92,22 +85,17 @@ func policyResponse(rule policy.Rule) dto.PolicyResponse {
 	}
 }
 
+func policyErrorStatus(err error) int {
+	switch {
+	case errors.Is(err, policy.ErrRuleNotFound):
+		return http.StatusNotFound
+	case errors.Is(err, policy.ErrRuleLimitReached):
+		return http.StatusConflict
+	default:
+		return http.StatusInternalServerError
+	}
+}
+
 func policyRuleFromRequest(req dto.PolicyRequest) (policy.Rule, error) {
-	ipKey, err := packet.IPKeyFromString(req.IP)
-	if err != nil {
-		return policy.Rule{}, err
-	}
-	protocol, err := policy.ProtocolFromString(req.Protocol)
-	if err != nil {
-		return policy.Rule{}, err
-	}
-	direction, err := packet.DirectionFromString(req.Direction)
-	if err != nil {
-		return policy.Rule{}, err
-	}
-	key, err := policy.NewRule(ipKey, req.Port, protocol, direction)
-	if err != nil {
-		return policy.Rule{}, err
-	}
-	return key, nil
+	return policy.RuleFromStrings(req.IP, req.Port, req.Protocol, req.Direction)
 }

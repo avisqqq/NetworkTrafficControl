@@ -358,7 +358,7 @@ func listEvent(list, action string) domain.Event {
 		if action == "add" {
 			return domain.EventPolicyAdded
 		}
-		return domain.EventOnlyLocalRemoved
+		return domain.EventPolicyRemoved
 	case "localnet_v4", "localnet_v6":
 		if action == "add" {
 			return domain.EventLocalNetAdded

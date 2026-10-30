@@ -67,6 +67,37 @@ Removes an IP.
 
 The same method pattern applies to `/whitelist` and `/onlylocal`.
 
+## Policies
+
+`/policies` blocks one IP and port combination for one protocol and direction. Rules are persisted and restored on startup.
+
+The SSH bypass runs before policy rules, so a rule for TCP port 22 never drops traffic.
+
+### `GET /policies`
+
+Returns the current rules.
+
+### `POST /policies`
+
+Adds a rule. `protocol` is `TCP` or `UDP`, and `direction` is `INGRESS` or `EGRESS`.
+
+```json
+{
+  "ip": "1.2.3.4",
+  "port": 443,
+  "protocol": "TCP",
+  "direction": "EGRESS"
+}
+```
+
+Returns `201` with the normalized rule, `400` for an invalid rule, and `409` when the rule limit is reached.
+
+### `DELETE /policies`
+
+Removes a rule. Unlike the list endpoints, this method takes the same JSON body as `POST`.
+
+Returns `200` with the removed rule, `400` for an invalid rule, and `404` when the rule does not exist.
+
 ## Local CIDRs
 
 | Endpoint | Purpose |

@@ -36,6 +36,24 @@ func NewRule(ip packet.IPKey,
 	}, nil
 }
 
+// RuleFromStrings builds a Rule from the plain form used by the HTTP API and
+// by persisted snapshots.
+func RuleFromStrings(ip string, port uint16, protocol, direction string) (Rule, error) {
+	ipKey, err := packet.IPKeyFromString(ip)
+	if err != nil {
+		return Rule{}, err
+	}
+	parsedProtocol, err := ProtocolFromString(protocol)
+	if err != nil {
+		return Rule{}, err
+	}
+	parsedDirection, err := packet.DirectionFromString(direction)
+	if err != nil {
+		return Rule{}, err
+	}
+	return NewRule(ipKey, port, parsedProtocol, parsedDirection)
+}
+
 func (r Rule) ToPolicyKey() IPPortRuleKey {
 	return IPPortRuleKey{
 		IP:        r.IP,

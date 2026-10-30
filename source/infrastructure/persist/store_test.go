@@ -3,6 +3,7 @@ package persist_test
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -35,5 +36,25 @@ func TestStoreWritesStableCIDRKeysAndPreservesMockMode(t *testing.T) {
 		if !strings.Contains(jsonText, key) {
 			t.Fatalf("JSON does not contain %s:\n%s", key, jsonText)
 		}
+	}
+}
+
+func TestStoreRoundTripsPolicies(t *testing.T) {
+	store, err := persist.New(filepath.Join(t.TempDir(), "lists.json"))
+	if err != nil {
+		t.Fatalf("new store: %v", err)
+	}
+
+	want := []lists.PolicyEntry{{IP: "2001:db8::1", Port: 53, Protocol: "UDP", Direction: "INGRESS"}}
+	if err := store.SaveLists(lists.ListSnapshot{Policies: want}); err != nil {
+		t.Fatalf("save lists: %v", err)
+	}
+
+	snapshot, err := store.LoadLists()
+	if err != nil {
+		t.Fatalf("load lists: %v", err)
+	}
+	if !reflect.DeepEqual(snapshot.Policies, want) {
+		t.Fatalf("policies = %v, want %v", snapshot.Policies, want)
 	}
 }

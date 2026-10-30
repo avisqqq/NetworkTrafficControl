@@ -191,6 +191,9 @@ func (m *Manager) AddPolicy(rule policy.Rule) error {
 func (m *Manager) RemovePolicy(rule policy.Rule) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+	if _, exists := m.policies[rule]; !exists {
+		return policy.ErrRuleNotFound
+	}
 	delete(m.policies, rule)
 	return nil
 }
