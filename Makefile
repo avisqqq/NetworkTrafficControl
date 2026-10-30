@@ -1,5 +1,5 @@
 .DEFAULT_GOAL := help
-.PHONY: help fmt fmt-check lint vet test test-race build web tidy check clean deploy
+.PHONY: help fmt fmt-check lint vet test test-race test-rpi build web tidy check clean deploy
 
 GO      ?= go
 BIN     ?= ntc
@@ -24,6 +24,9 @@ test: ## Run tests
 
 test-race: ## Run tests with the race detector
 	$(GO) test -race $(PKGS)
+
+test-rpi: ## Run root-only tests on the RPi (needs sudo there)
+	./scripts/test-rpi.sh
 
 tidy: ## Tidy go.mod/go.sum
 	$(GO) mod tidy

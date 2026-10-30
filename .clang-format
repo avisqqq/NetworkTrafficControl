@@ -1,0 +1,10 @@
+# Matches the existing style of tc_filter.bpf.c. Used by clangd in both
+# VSCode and Neovim so formatting is identical regardless of editor.
+BasedOnStyle: LLVM
+IndentWidth: 4
+TabWidth: 4
+UseTab: Never
+ColumnLimit: 0
+AlignConsecutiveMacros: true
+# bpf_helpers.h must come after linux/*.h; never reorder includes.
+SortIncludes: false
