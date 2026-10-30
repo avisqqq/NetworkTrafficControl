@@ -3,6 +3,7 @@ package lists
 import (
 	"ntc/source/domain/network"
 	"ntc/source/domain/packet"
+	"ntc/source/domain/policy"
 )
 
 type ListManager interface {
@@ -21,4 +22,7 @@ type ListManager interface {
 	AddToLocalNetsV6(ip string) (network.CIDR, error)
 	RemoveFromLocalNetsV6(ip string) (network.CIDR, error)
 	GetFromLocalNetsV6() ([]network.CIDREntry, error)
+	AddPolicy(rule policy.Rule) error
+	RemovePolicy(rule policy.Rule) error
+	GetPolicy() ([]policy.Rule, error)
 }

@@ -16,6 +16,7 @@ func NewCIDRFilter(v4Map, v6Map packet.Map[network.CIDR]) *CIDRFilter {
 		v6: v6Map,
 	}
 }
+
 func (f *CIDRFilter) DeleteLocalCIDRV4(entry network.CIDR) error {
 	return f.v4.Delete(entry)
 }

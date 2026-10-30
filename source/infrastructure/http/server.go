@@ -34,6 +34,11 @@ func NewServer(addr, webDir, iface, leaseFile string, mgr lists.ListManager, sse
 	mux.HandleFunc("/analysis/report", handlers.AnalysisReportHandler(reports))
 	mux.HandleFunc("/system/events", handlers.SystemEventsHandler(system))
 	mux.Handle("/", http.FileServer(http.Dir(webDir)))
+
+	// Policy
+
+	mux.HandleFunc("/policies", handlers.PolicyHandler(mgr.AddPolicy, mgr.RemovePolicy, mgr.GetPolicy))
+
 	return &http.Server{
 		Addr:              addr,
 		Handler:           LoggingMiddleware(mux, logger),

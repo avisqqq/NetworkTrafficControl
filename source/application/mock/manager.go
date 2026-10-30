@@ -5,6 +5,7 @@ import (
 
 	"ntc/source/domain/network"
 	"ntc/source/domain/packet"
+	"ntc/source/domain/policy"
 )
 
 type Manager struct {
@@ -14,6 +15,7 @@ type Manager struct {
 	onlylocal map[string]packet.IPKey
 	localV4   map[string]network.CIDR
 	localV6   map[string]network.CIDR
+	policies  map[policy.Rule]struct{}
 }
 
 func NewManager(localCIDRs []string) *Manager {
@@ -23,6 +25,7 @@ func NewManager(localCIDRs []string) *Manager {
 		onlylocal: make(map[string]packet.IPKey),
 		localV4:   make(map[string]network.CIDR),
 		localV6:   make(map[string]network.CIDR),
+		policies:  make(map[policy.Rule]struct{}),
 	}
 	for _, raw := range localCIDRs {
 		cidr, err := network.CIDRFromString(raw)
@@ -176,6 +179,31 @@ func (m *Manager) GetFromLocalNetsV6() ([]network.CIDREntry, error) {
 	m.mu.RLock()
 	defer m.mu.RUnlock()
 	return cidrEntries(m.localV6), nil
+}
+
+func (m *Manager) AddPolicy(rule policy.Rule) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	m.policies[rule] = struct{}{}
+	return nil
+}
+
+func (m *Manager) RemovePolicy(rule policy.Rule) error {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+	delete(m.policies, rule)
+	return nil
+}
+
+func (m *Manager) GetPolicy() ([]policy.Rule, error) {
+	m.mu.RLock()
+	defer m.mu.RUnlock()
+
+	result := make([]policy.Rule, 0, len(m.policies))
+	for rule := range m.policies {
+		result = append(result, rule)
+	}
+	return result, nil
 }
 
 func (m *Manager) IsBlacklisted(ip string) bool {

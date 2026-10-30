@@ -8,6 +8,7 @@ import (
 	"ntc/source/application/packet"
 	"ntc/source/application/packetstream"
 	networkCore "ntc/source/domain/network/core"
+	policyCore "ntc/source/domain/policy/core"
 	"ntc/source/infrastructure/packet/maps"
 
 	"github.com/cilium/ebpf"
@@ -34,11 +35,18 @@ func (l *Loader) NewIPFilter() lists.IPFilter {
 
 	return NewIPFilter(onlylocalMap, whitelistMap, blacklistMap)
 }
+
 func (l *Loader) NewCIDRFilter() networkCore.CIDRFilter {
 	v4 := maps.NewCIDRMap(l.collection, "local_nets_v4", 4)
 	v6 := maps.NewCIDRMap(l.collection, "local_nets_v6", 6)
 
 	return NewCIDRFilter(v4, v6)
+}
+
+func (l *Loader) NewPolicyFilter() policyCore.PolicyFilter {
+	policy := maps.NewIPPortMap(l.collection, "blocked_ip_ports")
+
+	return NewPolicyFilter(policy)
 }
 
 func (l *Loader) NewReader(ctx context.Context) (packetstream.Reader, error) {

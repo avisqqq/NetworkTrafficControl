@@ -46,6 +46,7 @@ enum event_action {
     ACT_SKIP = 2,
     ACT_SSH_BYPASS = 3,
     ACT_ONLY_LOCAL_DROP = 4,
+    ACT_PORT_DROP = 5,
 };
 
 enum stat_key {
@@ -68,6 +69,22 @@ struct cidr6_key{
     __u32 prefixlen;
     __u8 addr[16]; 
 };
+
+
+struct ip_port_rule_key{
+    struct ip_key ip;
+    __u8 pad;
+    __u16 port;
+    __u8 protocol;
+    __u8 direction;
+};
+
+struct {
+    __uint(type, BPF_MAP_TYPE_HASH);
+    __uint(max_entries, 1024);
+    __type(key, struct ip_port_rule_key);
+    __type(value, __u8);
+}blocked_ip_ports SEC(".maps");
 
 struct {
     __uint(type, BPF_MAP_TYPE_HASH);
@@ -126,7 +143,39 @@ struct {
 } seq_map SEC(".maps");
 
 
+static __always_inline int endpoint_is_blocked(
+        const struct ip_key *ip,
+        __u16 port,
+        __u8 protocol,
+        __u8 direction
+        )
+{
 
+    struct ip_port_rule_key key = {};
+
+    key.ip = *ip;
+    key.port = port;
+    key.protocol = protocol;
+    key.direction = direction;
+
+    return (bpf_map_lookup_elem(&blocked_ip_ports, &key)) != 0;
+}
+
+static __always_inline int packet_has_blocked_endpoint(
+        const struct ip_key *src_key,
+        const struct ip_key *dst_key,
+        __u16 src_port,
+        __u16 dst_port,
+        __u8 protocol,
+        __u8 direction
+        )
+{
+    if(protocol != IPPROTO_TCP && protocol != IPPROTO_UDP)
+        return 0;
+
+
+    return endpoint_is_blocked(src_key, src_port, protocol, direction) || endpoint_is_blocked(dst_key, dst_port, protocol, direction);
+}
 
 static __always_inline void inc_stat(__u32 key) {
     __u64 *v = bpf_map_lookup_elem(&stats, &key);
@@ -254,6 +303,15 @@ static __always_inline int handle_ipv4(
     fill_ipv4_key(&src_key, src);
     fill_ipv4_key(&dst_key, dst);
 
+//check policy
+   if (packet_has_blocked_endpoint(&src_key, &dst_key, src_port, dst_port, ip->protocol, direction)){
+       inc_stat(STAT_DROP);
+
+       emit_event((const __u8 *)&src, (const __u8 *)&dst, 4, ip->protocol, ACT_PORT_DROP, direction, src_port, dst_port, pkt_size, tcp_flags);
+       
+       return TC_ACT_SHOT;
+   } 
+
 // Check for local net
     if (bpf_map_lookup_elem(&onlylocal, &src_key)){
         if(!dst_is_in_local_v4(dst)){
@@ -264,19 +322,19 @@ static __always_inline int handle_ipv4(
         }
     }
 
-    if (ip->protocol == IPPROTO_TCP && (src_port == 22 || dst_port == 22)) {
-        emit_event((const __u8 *)&src, (const __u8 *)&dst, 4, ip->protocol,
-                   ACT_SSH_BYPASS, direction, src_port, dst_port, pkt_size, tcp_flags);
-        return TC_ACT_OK;
-    }
-
-
     if (bpf_map_lookup_elem(&blacklist, &src_key) ||
         bpf_map_lookup_elem(&blacklist, &dst_key)) {
         inc_stat(STAT_DROP);
         emit_event((const __u8 *)&src, (const __u8 *)&dst, 4, ip->protocol,
                    ACT_DROP, direction, src_port, dst_port, pkt_size, tcp_flags);
         return TC_ACT_SHOT;
+    }
+
+// SSH BYPASS
+    if (ip->protocol == IPPROTO_TCP && (src_port == 22 || dst_port == 22)) {
+        emit_event((const __u8 *)&src, (const __u8 *)&dst, 4, ip->protocol,
+                   ACT_SSH_BYPASS, direction, src_port, dst_port, pkt_size, tcp_flags);
+        return TC_ACT_OK;
     }
 
     if (bpf_map_lookup_elem(&whitelist, &src_key) ||
@@ -324,6 +382,16 @@ static __always_inline int handle_ipv6(
     fill_ipv6_key(&src_key, &ipv6->saddr);
     fill_ipv6_key(&dst_key, &ipv6->daddr);
 
+//check policy
+if(packet_has_blocked_endpoint(&src_key, &dst_key,src_port, dst_port,ipv6->nexthdr,direction)){
+inc_stat(STAT_DROP);
+        emit_event((const __u8 *)&ipv6->saddr, (const __u8 *)&ipv6->daddr, 6, ipv6->nexthdr,
+                   ACT_PORT_DROP, direction, src_port, dst_port, pkt_size, tcp_flags);
+        return TC_ACT_SHOT;
+}
+
+
+
 //check local
 if (bpf_map_lookup_elem(&onlylocal, &src_key)){
         if(!dst_is_in_local_v6(&ipv6->daddr)){
@@ -334,11 +402,6 @@ if (bpf_map_lookup_elem(&onlylocal, &src_key)){
         }
     }
 
-    if (ipv6->nexthdr == IPPROTO_TCP && (src_port == 22 || dst_port == 22)) {
-        emit_event((const __u8 *)&ipv6->saddr, (const __u8 *)&ipv6->daddr, 6, ipv6->nexthdr,
-                   ACT_SSH_BYPASS, direction, src_port, dst_port, pkt_size, tcp_flags);
-        return TC_ACT_OK;
-    }
 
     if (bpf_map_lookup_elem(&blacklist, &src_key) ||
         bpf_map_lookup_elem(&blacklist, &dst_key)) {
@@ -346,6 +409,12 @@ if (bpf_map_lookup_elem(&onlylocal, &src_key)){
         emit_event((const __u8 *)&ipv6->saddr, (const __u8 *)&ipv6->daddr, 6, ipv6->nexthdr,
                    ACT_DROP, direction, src_port, dst_port, pkt_size, tcp_flags);
         return TC_ACT_SHOT;
+    }
+// SSH bypass
+    if (ipv6->nexthdr == IPPROTO_TCP && (src_port == 22 || dst_port == 22)) {
+        emit_event((const __u8 *)&ipv6->saddr, (const __u8 *)&ipv6->daddr, 6, ipv6->nexthdr,
+                   ACT_SSH_BYPASS, direction, src_port, dst_port, pkt_size, tcp_flags);
+        return TC_ACT_OK;
     }
 
     if (bpf_map_lookup_elem(&whitelist, &src_key) ||

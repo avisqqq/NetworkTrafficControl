@@ -2,6 +2,7 @@ package maps
 
 import (
 	"fmt"
+
 	"ntc/source/domain/packet"
 
 	"github.com/cilium/ebpf"

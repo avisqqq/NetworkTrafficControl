@@ -7,6 +7,12 @@ import (
 	"fmt"
 	"log"
 	"net/http"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
+
+	alerts "ntc/source/application/alerts"
 	appAnalytics "ntc/source/application/analytics"
 	"ntc/source/application/clock"
 	"ntc/source/application/inspection"
@@ -28,10 +34,6 @@ import (
 	infraStorage "ntc/source/infrastructure/storage"
 	infraLog "ntc/source/infrastructure/storage/gorm/repositories"
 	infrasystem "ntc/source/infrastructure/system"
-	"os"
-	"os/signal"
-	"syscall"
-	"time"
 )
 
 func main() {
@@ -156,8 +158,14 @@ func run(configPath string, mockMode bool) error {
 		)
 	}
 	inspectionService := inspection.NewService(geoProvider, appLog, analyticsRepo)
+	alertsConsumer := alerts.NewConsumer(
+		[]alerts.Rule{alerts.NewForbiddenIPRule()},
+		alerts.LogSink{},
+		5*time.Second,
+	)
 	dispatcher := packetstream.NewDispatcher(
 		runtime.Reader,
+		alertsConsumer,
 		sseConsumer,
 		metricsService,
 		analyticsService,

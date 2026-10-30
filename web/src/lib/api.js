@@ -26,6 +26,32 @@ export async function removeIP(type, ip) {
   if (!res.ok) throw new Error(await res.text());
 }
 
+export async function fetchPolicies() {
+  const res = await fetch("/policies", { cache: "no-store" });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function addPolicy(rule) {
+  const res = await fetch("/policies", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(rule),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
+export async function removePolicy(rule) {
+  const res = await fetch("/policies", {
+    method: "DELETE",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(rule),
+  });
+  if (!res.ok) throw new Error(await res.text());
+  return res.json();
+}
+
 export async function fetchNetworkDevices() {
   const res = await fetch("/network/devices");
   return res.ok ? res.json() : [];
@@ -54,7 +80,7 @@ export async function fetchMetricsText() {
 }
 
 export async function fetchAppLogs(limit = 200) {
-  const res = await fetch(`/app/logs?limit=${encodeURIComponent(limit)}`);
+  const res = await fetch(`/app/logs?limit=${encodeURIComponent(limit)}`, { cache: "no-store" });
   if (!res.ok) throw new Error(await res.text());
   return res.json();
 }

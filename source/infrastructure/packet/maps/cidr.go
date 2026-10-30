@@ -2,6 +2,7 @@ package maps
 
 import (
 	"fmt"
+
 	"ntc/source/domain/network"
 	"ntc/source/domain/packet"
 

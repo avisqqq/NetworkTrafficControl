@@ -3,6 +3,7 @@
   import Header from './lib/Header.svelte'
   import EventTable from './lib/EventTable.svelte'
   import ListPanel from './lib/ListPanel.svelte'
+  import PolicyPanel from './lib/PolicyPanel.svelte'
   import NetworkDevices from './lib/NetworkDevices.svelte'
   import MetricsView from './lib/MetricsView.svelte'
   import SystemMonitor from './lib/SystemMonitor.svelte'
@@ -18,6 +19,7 @@
   let overviewMetrics = ''
   let listCounts = { black: 0, white: 0, local: 0 }
   let selectedPacket = null
+  let policies = []
   let lastActiveView = activeView
   const currentHost = window.location.hostname || 'localhost'
   const grafanaBase = `http://${currentHost}:3000/d`
@@ -231,9 +233,10 @@
     </section>
   </main>
 {:else if activeView === 'live'}
-  <main class="split container">
+  <main class="split live-layout">
     <ListPanel bind:selectedPacket />
-    <EventTable bind:selectedPacket />
+    <EventTable bind:selectedPacket {policies} />
+    <PolicyPanel bind:policies {selectedPacket} />
   </main>
 {:else if activeView === 'hostnames'}
   <main class="container page">
